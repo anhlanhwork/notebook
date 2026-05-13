@@ -192,12 +192,7 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
 
       <div className="ed-body">
         {selection.type === "overview" && (
-          <div className="ov-wrap">
-            {/* Nội dung OverviewPane của bạn */}
-            <div className="ov-hero" style={{ background: mod.color + '22', borderLeft: `4px solid ${mod.color}` }}>
-               <h2>{mod.name} <code>{mod.tech}</code></h2>
-            </div>
-          </div>
+          <OverviewPane mod={mod} setMod={setMod} />
         )}
 
         {selection.type === "mainflow" && (
@@ -226,6 +221,90 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
           <button className="btn-primary" onClick={onSave}>
             <i className="ti ti-device-floppy"></i> Lưu thay đổi
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_META = {
+  pending:  { label: "Chưa bắt đầu", color: "var(--text3)",   bg: "var(--bg3)" },
+  studying: { label: "Đang nghiên cứu", color: "var(--warn-bd)", bg: "var(--warn-bg)" },
+  done:     { label: "Hoàn thành",    color: "var(--success)", bg: "var(--success-bg)" },
+};
+
+const MODULE_ICONS = {
+  sale: "ti-shopping-cart", purchase: "ti-shopping-bag", stock: "ti-package",
+  account: "ti-calculator", crm: "ti-users", hr: "ti-id-badge", default: "ti-cube",
+};
+
+function OverviewPane({ mod, setMod }) {
+  const ov = mod.overview || {};
+  const st = STATUS_META[mod.status] || STATUS_META.pending;
+  const icon = MODULE_ICONS[mod.tech] || MODULE_ICONS.default;
+  const featCount = mod.features?.length || 0;
+  const flowCount = (mod.mainFlows?.length || 0) +
+    (mod.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
+
+  function field(key, val) {
+    setMod({ ...mod, overview: { ...ov, [key]: val } });
+  }
+
+  return (
+    <div className="ov-wrap">
+      <div className="ov-hero" style={{ borderColor: mod.color }}>
+        <div className="ov-hero-icon" style={{ background: mod.color }}>
+          <i className={"ti " + icon}></i>
+        </div>
+        <div className="ov-hero-info">
+          <div className="ov-hero-name">
+            {mod.name}
+            <code className="ov-tech">{mod.tech}</code>
+          </div>
+          <div className="ov-hero-meta">
+            <span className="ov-pill" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+            <span className="ov-meta-item"><i className="ti ti-calendar-event"></i>{mod.updatedAt}</span>
+            <span className="ov-meta-item"><i className="ti ti-puzzle"></i>{featCount} tính năng</span>
+            <span className="ov-meta-item"><i className="ti ti-git-branch"></i>{flowCount} luồng</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="ov-body">
+        <div className="ov-col-left">
+          <div className="ov-section">
+            <div className="ov-section-title">Thông tin module</div>
+            <div className="ov-fields">
+              <div className="ov-field">
+                <label className="ov-lbl">Phiên bản</label>
+                <input className="ov-input" value={ov.version || ""} onChange={e => field("version", e.target.value)} placeholder="18.0" />
+              </div>
+              <div className="ov-field">
+                <label className="ov-lbl">Danh mục</label>
+                <input className="ov-input" value={ov.category || ""} onChange={e => field("category", e.target.value)} placeholder="vd: Bán hàng" />
+              </div>
+              <div className="ov-field ov-field-full">
+                <label className="ov-lbl">Phụ thuộc</label>
+                <input className="ov-input" value={ov.depends || ""} onChange={e => field("depends", e.target.value)} placeholder="base, mail, account..." />
+              </div>
+              <div className="ov-field ov-field-full">
+                <label className="ov-lbl">Menu path</label>
+                <input className="ov-input" value={ov.menu || ""} onChange={e => field("menu", e.target.value)} placeholder="vd: Sales ▸ Orders ▸ Quotations" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ov-col-right">
+          <div className="ov-section ov-section-purpose">
+            <div className="ov-section-title">Mục đích & mô tả</div>
+            <textarea
+              className="ov-textarea"
+              value={ov.purpose || ""}
+              onChange={e => field("purpose", e.target.value)}
+              placeholder="Mô tả tổng quan về chức năng của module..."
+            />
+          </div>
         </div>
       </div>
     </div>

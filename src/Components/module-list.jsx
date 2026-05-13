@@ -2,7 +2,7 @@
    Click a card to open that module's handbook.
    Add new module via modal. */
 
-const { useState: useStateML } = React;
+import React, { useState } from 'react';
 
 const STATUS_META = {
   pending:  { label: "Chưa bắt đầu",   color: "var(--text3)",  bg: "var(--bg3)" },
@@ -26,10 +26,10 @@ const PRESET_COLORS = [
 ];
 
 function ModuleListScreen({ data, setData, onOpen }) {
-  const [query, setQuery] = useStateML("");
-  const [statusFilter, setStatusFilter] = useStateML("all");
-  const [modalOpen, setModalOpen] = useStateML(false);
-  const [draft, setDraft] = useStateML({ name: "", tech: "", color: PRESET_COLORS[0], category: "" });
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draft, setDraft] = useState({ name: "", tech: "", color: PRESET_COLORS[0], category: "" });
 
   const filtered = data.modules.filter(m => {
     if (statusFilter !== "all" && m.status !== statusFilter) return false;
@@ -242,4 +242,4 @@ function ModuleListScreen({ data, setData, onOpen }) {
   );
 }
 
-window.ModuleListScreen = ModuleListScreen;
+export default ModuleListScreen;

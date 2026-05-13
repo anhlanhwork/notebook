@@ -1,6 +1,11 @@
 /* Root App — routes between module-list screen and handbook view. */
 
-const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp } = React;
+import React, { useState, useEffect, useRef } from 'react';
+import Sidebar from './sidebar.jsx';
+import { Editor } from './editor.jsx';
+import ModuleListScreen from './module-list.jsx';
+import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor, TweakButton } from './tweaks-panel.jsx';
+import SEED_DATA from '../Scripts/data.js';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",
@@ -12,21 +17,24 @@ const LS_KEY = "odoo18_handbook_v2";
 
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [data, setData] = useStateApp(() => {
+  const [data, setData] = useState(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
       if (stored) return JSON.parse(stored);
     } catch (e) {}
-    return window.SEED_DATA;
+    return SEED_DATA;
   });
-  const [activeModId, setActiveModId] = useStateApp(null); // null = module list screen
-  const [selection, setSelection] = useStateApp({ type: "overview" });
-  const [saveState, setSaveState] = useStateApp({ kind: "saved", at: nowHHMM() });
-  const [toast, setToast] = useStateApp(null);
-  const skipDirtyRef = useRefApp(true);
+  const [activeModId, setActiveModId] = useState(() => {
+    const m = location.pathname.match(/^\/module\/([^/]+)/);
+    return m ? m[1] : null;
+  });
+  const [selection, setSelection] = useState({ type: "overview" });
+  const [saveState, setSaveState] = useState({ kind: "saved", at: nowHHMM() });
+  const [toast, setToast] = useState(null);
+  const skipDirtyRef = useRef(true);
 
   // theme
-  useEffectApp(() => {
+  useEffect(() => {
     document.documentElement.dataset.theme = tweaks.theme;
     document.documentElement.style.setProperty("--blue", tweaks.accent);
     document.documentElement.style.setProperty("--blue-hi", shade(tweaks.accent, -15));
@@ -34,12 +42,12 @@ function App() {
     document.documentElement.dataset.density = tweaks.density;
   }, [tweaks.theme, tweaks.accent, tweaks.density]);
 
-  useEffectApp(() => {
+  useEffect(() => {
     if (skipDirtyRef.current) { skipDirtyRef.current = false; return; }
     setSaveState({ kind: "dirty" });
   }, [data]);
 
-  useEffectApp(() => {
+  useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
@@ -71,11 +79,23 @@ function App() {
       modules: data.modules.map(m => m.id === activeModId ? updated : m)
     });
   }
+  useEffect(() => {
+    function onPop() {
+      const m = location.pathname.match(/^\/module\/([^/]+)/);
+      setActiveModId(m ? m[1] : null);
+      setSelection({ type: "overview" });
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   function openModule(id) {
+    history.pushState(null, "", "/module/" + id);
     setActiveModId(id);
     setSelection({ type: "overview" });
   }
   function backToModules() {
+    history.pushState(null, "", "/");
     setActiveModId(null);
   }
 
@@ -110,39 +130,6 @@ function App() {
 
   return (
     <div className="app-root">
-      <header className="topbar">
-        <button className="tb-brand tb-brand-btn" onClick={backToModules}>
-          <i className="ti ti-settings-automation tb-brand-glyph"></i>
-          <div className="tb-brand-text">
-            <div className="tb-brand-name">Odoo 18</div>
-            <div className="tb-brand-sub">System Design Handbook</div>
-          </div>
-        </button>
-        <div className="tb-sep"></div>
-        <div className="tb-context">
-          <button className="tb-crumb-btn" onClick={backToModules}>
-            <i className="ti ti-folders"></i>
-            <span>Sổ tay nội bộ</span>
-          </button>
-          {activeMod && (
-            <>
-              <i className="ti ti-chevron-right tb-chev"></i>
-              <span className="tb-context-active">{activeMod.name}</span>
-            </>
-          )}
-        </div>
-        <div className="tb-grow"></div>
-        <button className="tb-btn" title="Tìm kiếm">
-          <i className="ti ti-search"></i>
-          <kbd className="tb-kbd">⌘K</kbd>
-        </button>
-        <button className="tb-btn" title="Trợ giúp">
-          <i className="ti ti-help"></i>
-        </button>
-        <div className="tb-user">
-          <div className="tb-avatar">NL</div>
-        </div>
-      </header>
 
       {activeMod ? (
         <div className="app-shell">
@@ -233,4 +220,4 @@ function tint(hex, alpha) {
   return "#" + [mix(r),mix(g),mix(b)].map(n => n.toString(16).padStart(2,"0")).join("");
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+export default App;

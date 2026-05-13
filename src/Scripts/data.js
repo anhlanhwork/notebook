@@ -31,7 +31,8 @@ export const SALES = {
       "Quản lý toàn bộ quy trình bán hàng từ báo giá → đơn hàng → giao hàng → hóa đơn. Tích hợp với Inventory để xuất kho và Accounting để ghi nhận doanh thu. Hỗ trợ giá theo bảng giá, chiết khấu, thuế đa cấp, và quy trình duyệt nhiều cấp."
   },
 
-  // ... toàn bộ phần mainFlows / features giữ nguyên ...
+  mainFlows: [],
+  features: []
 };
 
 /* ────────────────────────────────────────────────────────────

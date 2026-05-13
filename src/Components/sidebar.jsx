@@ -85,4 +85,4 @@ function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDe
   );
 }
 
-window.Sidebar = Sidebar;
+export default Sidebar;
