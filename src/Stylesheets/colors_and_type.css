@@ -1,0 +1,138 @@
+/* ============================================================
+   Odoo 18 Handbook — Design Tokens
+   Colors, typography, spacing, radii, shadows, motion
+   ============================================================ */
+
+:root {
+  /* ---------- NEUTRALS (warm, slightly cream) ---------- */
+  --bg:        #ffffff;   /* surface 0 — primary panels, top bar */
+  --bg2:       #f7f7f6;   /* surface 1 — table headers, sunken */
+  --bg3:       #f0efed;   /* surface 2 — app shell behind panels */
+
+  --text:      #1a1a18;   /* primary text */
+  --text2:     #5a5a56;   /* secondary / labels */
+  --text3:     #9a9a94;   /* tertiary / placeholder / breadcrumb */
+
+  --border:    rgba(0,0,0,0.08);   /* hairline divider */
+  --border2:   rgba(0,0,0,0.16);   /* stronger border / input edge */
+
+  /* ---------- BRAND / ACCENT (fresh leaf green) ---------- */
+  /* NB: variable is named --blue for back-compat; the value is green. */
+  --blue:      #5BAA50;            /* primary action, links, focus */
+  --blue-bg:   #EAF5E2;            /* selected nav, info pill */
+  --blue-hi:   #3F8A37;            /* hover/press for primary */
+  --green-deep:#1F6B40;            /* dark forest accent — headers, full-bleed slabs */
+
+  /* ---------- SEMANTIC ---------- */
+  --success:    #1D9E75;
+  --success-bg: #e6f5ef;
+
+  --warn:       #e6a817;
+  --warn-bd:    #e6a817;
+  --warn-bg:    #fff8e8;
+
+  --danger:     #d9534f;
+  --danger-bg:  #fdecea;
+
+  /* ---------- RADII ---------- */
+  --radius-sm: 4px;
+  --radius:    8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ---------- SHADOWS ---------- */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-2: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-3: 0 10px 25px rgba(0,0,0,0.10);  /* toast, popover */
+
+  /* ---------- SPACING (4px base) ---------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  /* ---------- MOTION ---------- */
+  --ease:        cubic-bezier(.4,0,.2,1);
+  --dur-fast:    150ms;
+  --dur:         300ms;
+  --dur-slow:    600ms;
+
+  /* ---------- TYPE ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --fs-10: 10px;   /* eyebrow / module label uppercase */
+  --fs-11: 11px;   /* breadcrumb, micro */
+  --fs-12: 12px;   /* form labels */
+  --fs-13: 13px;
+  --fs-14: 14px;   /* body default */
+  --fs-16: 16px;
+  --fs-18: 18px;   /* page title H1 */
+  --fs-22: 22px;
+  --fs-28: 28px;   /* hero / module overview */
+
+  --lh-tight: 1.2;
+  --lh:       1.45;
+  --lh-loose: 1.6;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:      #1c1c1a;
+    --bg2:     #242422;
+    --bg3:     #2c2c2a;
+    --text:    #e8e8e4;
+    --text2:   #a0a09a;
+    --text3:   #606058;
+    --border:  rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.16);
+    --blue-bg: #1f3322;
+    --success-bg: #14322a;
+    --warn-bg:    #3a2f15;
+    --danger-bg:  #3a1f1e;
+    --shadow-3: 0 10px 25px rgba(0,0,0,0.5);
+  }
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   ============================================================ */
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: var(--lh);
+  color: var(--text);
+  background: var(--bg3);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, .h1 { font-size: var(--fs-18); font-weight: var(--fw-semi); line-height: var(--lh-tight); color: var(--text); }
+h2, .h2 { font-size: var(--fs-16); font-weight: var(--fw-semi); line-height: var(--lh-tight); color: var(--text); }
+h3, .h3 { font-size: var(--fs-14); font-weight: var(--fw-semi); color: var(--text); }
+
+.hero      { font-size: var(--fs-28); font-weight: var(--fw-bold); letter-spacing: -0.01em; }
+.eyebrow   { font-size: var(--fs-10); font-weight: var(--fw-semi); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+.label     { font-size: var(--fs-12); color: var(--text2); }
+.micro     { font-size: var(--fs-11); color: var(--text3); }
+.code, code, kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+p { color: var(--text); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { color: var(--blue-hi); text-decoration: underline; }
