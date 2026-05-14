@@ -7,7 +7,7 @@ function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDe
     <aside className="sb">
       <button className="sb-back" onClick={onBackToModules}>
         <i className="ti ti-arrow-left"></i>
-        <span>Tất cả modules</span>
+        <span>Tất cả sổ tay</span>
       </button>
       <div className="sb-modhd">
         <div className="sb-modhd-dot" style={{ background: mod.color }}></div>

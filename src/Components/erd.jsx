@@ -1,235 +1,399 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-/* ════════════════════════════════════════════════════════════
-   CONSTANTS & UTILS
-   ════════════════════════════════════════════════════════════ */
-const ERD_CARD_W = 290;
-const ERD_FIELD_H = 26;
-const ERD_HEAD_H  = 36;
+/* ── Constants ─────────────────────────────────────────────── */
+const COLOR_PRESETS = [
+  "#5BAA50","#1F6B40","#378ADD","#1D4ED8","#7C3AED",
+  "#D85A30","#B91C1C","#D97706","#0891B2","#374151",
+];
 
-/**
- * Xác định icon hiển thị cho các loại quan hệ dữ liệu
- */
-export function relIcon(type) {
-  if (type?.startsWith("Many2one"))  return "M2o";
-  if (type?.startsWith("One2many"))  return "O2m";
-  if (type?.startsWith("Many2many")) return "M2m";
+const CARD_W_DEF  = 290;
+const HEAD_H      = 36;
+const COL_HEAD_H  = 22;
+const FIELD_H     = 27;
+const ADD_BTN_H   = 32;
+const NAME_W_DEF  = 88;
+const TYPE_W_DEF  = 72;
+
+const FIELD_TYPES = [
+  "Char","Text","Integer","Float","Boolean","Date","Datetime",
+  "Selection","Many2one","One2many","Many2many","Binary","Monetary","Html"
+];
+const REL_TYPES = ["Many2one","One2many","Many2many"];
+
+const LINE_COLOR = { m2o: "#15803D", o2m: "#1D4ED8", m2m: "#7E22CE" };
+
+function relKind(type) {
+  if (type === "Many2one")  return "m2o";
+  if (type === "One2many")  return "o2m";
+  if (type === "Many2many") return "m2m";
   return null;
 }
+function relChip(type) {
+  const k = relKind(type); if (!k) return null;
+  return { m2o: { label:"M2o", cls:"chip-m2o" },
+           o2m: { label:"O2m", cls:"chip-o2m" },
+           m2m: { label:"M2m", cls:"chip-m2m" } }[k];
+}
+function mkId() { return "m" + Math.random().toString(36).slice(2, 7); }
+function cardH(c) { return HEAD_H + COL_HEAD_H + (c.fields?.length || 0) * FIELD_H + ADD_BTN_H; }
+function cardW(c) { return c.width || CARD_W_DEF; }
 
-/* ════════════════════════════════════════════════════════════
-   MAIN COMPONENT: ERDModels
-   ════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   ERDModels
+   ══════════════════════════════════════════════════════════════ */
 export function ERDModels({ models, setModels, accent = "#5BAA50" }) {
-  const cards = models.cards || [];
-  const [drag, setDrag] = useState(null);
+  const cards = models?.cards || [];
+
+  const [drag,      setDrag]      = useState(null); // { id, offX, offY }
+  const [resize,    setResize]    = useState(null); // card width: { id, startX, startW }
+  const [colRes,    setColRes]    = useState(null); // col width: { id, col, startX, startW }
+  const [colorPick, setColorPick] = useState(null); // cid — card whose picker is open
+  const [wrapSize,  setWrapSize]  = useState({ w: 900, h: 500 });
   const wrapRef = useRef(null);
 
-  // Tính toán kích thước canvas dựa trên vị trí các card
-  const maxX = Math.max(...cards.map(c => c.x + ERD_CARD_W), 800);
-  const maxY = Math.max(...cards.map(c => c.y + ERD_HEAD_H + (c.fields.length * ERD_FIELD_H) + 20), 400);
-  const W = maxX + 100;
-  const H = maxY + 100;
+  /* ResizeObserver — canvas fills parent */
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver(([e]) => {
+      const { width, height } = e.contentRect;
+      setWrapSize({ w: Math.floor(width), h: Math.floor(height) });
+    });
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
 
-  /* ════════════════ INTERACTION LOGIC ════════════════ */
-  
-  function onMouseDownCard(e, c) {
-    // Không cho phép drag khi đang tương tác với input hoặc nút bấm
-    if (e.target.closest(".erd-field") || e.target.closest(".erd-add-field") || e.target.closest(".erd-del")) return;
-    
-    const rect = wrapRef.current.getBoundingClientRect();
-    setDrag({ 
-      id: c.id, 
-      offX: e.clientX - rect.left - c.x, 
-      offY: e.clientY - rect.top - c.y 
+  /* SVG size always >= visible area */
+  const svgW = Math.max(...cards.map(c => c.x + cardW(c) + 100), wrapSize.w);
+  const svgH = Math.max(...cards.map(c => c.y + cardH(c) + 100), wrapSize.h);
+
+  /* ── Pointer helpers ── */
+  function canvasXY(e) {
+    const r  = wrapRef.current.getBoundingClientRect();
+    const sl = wrapRef.current.scrollLeft;
+    const st = wrapRef.current.scrollTop;
+    return { x: e.clientX - r.left + sl, y: e.clientY - r.top + st };
+  }
+
+  /* ── Card drag ── */
+  function onHeadDown(e, c) {
+    if (e.target.closest("input,button,select")) return;
+    e.preventDefault();
+    const { x, y } = canvasXY(e);
+    setDrag({ id: c.id, offX: x - c.x, offY: y - c.y });
+  }
+
+  /* ── Card resize (right edge) ── */
+  function onCardResizeDown(e, c) {
+    e.preventDefault(); e.stopPropagation();
+    setResize({ id: c.id, startX: e.clientX, startW: cardW(c) });
+  }
+
+  /* ── Column resize (header separator) ── */
+  function onColResDown(e, c, col) {
+    e.preventDefault(); e.stopPropagation();
+    const startW = col === "name"
+      ? (c.colW?.name || NAME_W_DEF)
+      : (c.colW?.type || TYPE_W_DEF);
+    setColRes({ id: c.id, col, startX: e.clientX, startW });
+  }
+
+  /* ── mousemove: handles all three drag types ── */
+  function onMove(e) {
+    if (drag) {
+      const { x, y } = canvasXY(e);
+      const nx = Math.max(0, Math.round((x - drag.offX) / 5) * 5);
+      const ny = Math.max(0, Math.round((y - drag.offY) / 5) * 5);
+      upd(drag.id, { x: nx, y: ny });
+    } else if (resize) {
+      const dx  = e.clientX - resize.startX;
+      const nw  = Math.max(200, Math.round((resize.startW + dx) / 5) * 5);
+      upd(resize.id, { width: nw });
+    } else if (colRes) {
+      const dx  = e.clientX - colRes.startX;
+      const nw  = Math.max(40, Math.round(colRes.startW + dx));
+      const c   = cards.find(c => c.id === colRes.id);
+      if (c) upd(colRes.id, { colW: { ...(c.colW || {}), [colRes.col]: nw } });
+    }
+  }
+  function onUp() { setDrag(null); setResize(null); setColRes(null); }
+
+  /* ── Generic card updater ── */
+  function upd(cid, patch) {
+    setModels({ ...models, cards: cards.map(c => c.id === cid ? { ...c, ...patch } : c) });
+  }
+
+  /* ── CRUD ── */
+  function addCard() {
+    const id  = mkId();
+    const rx  = cards.length ? Math.max(...cards.map(c => c.x + cardW(c))) : 40;
+    setModels({ ...models, cards: [...cards, {
+      id, name: "new.model", color: accent,
+      x: rx + 30, y: 40, width: CARD_W_DEF,
+      fields: [{ name: "name", type: "Char", desc: "Tên", req: true }]
+    }]});
+  }
+  function delCard(cid) {
+    if (!confirm("Xóa model này?")) return;
+    setModels({ ...models,
+      cards: cards.filter(c => c.id !== cid)
+                  .map(c => ({ ...c, fields: c.fields.map(f =>
+                    f.relTo === cid ? { ...f, relTo: undefined } : f) }))
     });
   }
+  function updCardName(cid, v)  { upd(cid, { name: v }); }
+  function updCardColor(cid, v) { upd(cid, { color: v }); }
 
-  function onMouseMove(e) {
-    if (!drag) return;
-    const rect = wrapRef.current.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - rect.left - drag.offX);
-    const y = Math.max(0, e.clientY - rect.top - drag.offY);
-    
-    // Snap to grid (5px)
-    setModels({
-      ...models,
-      cards: cards.map(c => c.id === drag.id ? { ...c, x: Math.round(x/5)*5, y: Math.round(y/5)*5 } : c)
-    });
-  }
-
-  function onMouseUp() { 
-    setDrag(null); 
-  }
-
-  /* ════════════════ DATA UPDATES ════════════════ */
-
-  function updField(cid, idx, key, val) {
-    setModels({
-      ...models,
-      cards: cards.map(c => c.id !== cid ? c : { 
-        ...c, 
-        fields: c.fields.map((f, i) => i === idx ? { ...f, [key]: val } : f) 
-      })
-    });
-  }
-
-  function delField(cid, idx) {
-    setModels({
-      ...models,
-      cards: cards.map(c => c.id !== cid ? c : { ...c, fields: c.fields.filter((_, i) => i !== idx) })
-    });
-  }
+  /* Close color picker when clicking outside */
+  useEffect(() => {
+    if (!colorPick) return;
+    function onDoc(e) {
+      if (!e.target.closest(".erd-color-pop") && !e.target.closest(".erd-color-dot-btn"))
+        setColorPick(null);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [colorPick]);
 
   function addField(cid) {
-    setModels({
-      ...models,
-      cards: cards.map(c => c.id !== cid ? c : { 
-        ...c, 
-        fields: [...c.fields, { name: "new_field", type: "Char", desc: "" }] 
-      })
-    });
+    const c = cards.find(c => c.id === cid); if (!c) return;
+    upd(cid, { fields: [...c.fields, { name: "new_field", type: "Char", desc: "" }] });
+  }
+  function updField(cid, idx, key, val) {
+    const c = cards.find(c => c.id === cid); if (!c) return;
+    upd(cid, { fields: c.fields.map((f, i) => i === idx ? { ...f, [key]: val } : f) });
+  }
+  function delField(cid, idx) {
+    const c = cards.find(c => c.id === cid); if (!c) return;
+    upd(cid, { fields: c.fields.filter((_, i) => i !== idx) });
+  }
+  function toggleReq(cid, idx) {
+    const f = cards.find(c => c.id === cid)?.fields[idx];
+    if (f) updField(cid, idx, "req", !f.req);
   }
 
-  function updCardName(cid, val) {
-    setModels({ ...models, cards: cards.map(c => c.id === cid ? { ...c, name: val } : c) });
-  }
-
-  function delCard(cid) {
-    if (!window.confirm("Xóa model này và các liên kết liên quan?")) return;
-    setModels({
-      ...models,
-      cards: cards.filter(c => c.id !== cid).map(c => ({
-        ...c,
-        fields: c.fields.map(f => f.relTo === cid ? { ...f, relTo: undefined } : f)
-      }))
-    });
-  }
-
-  function addCard() {
-    const id = "m_" + Math.random().toString(36).slice(2, 6);
-    const rightmost = cards.length > 0 ? Math.max(...cards.map(c => c.x)) : 0;
-    setModels({
-      ...models,
-      cards: [...cards, {
-        id, name: "new.model", x: rightmost + 320, y: 30, color: accent,
-        fields: [{ name: "name", type: "Char", desc: "", req: true }]
-      }]
-    });
-  }
-
-  /* ════════════════ LINE CALCULATIONS ════════════════ */
+  /* ── Relation line calculations ── */
   const lines = [];
-  cards.forEach(c => {
-    c.fields.forEach((f, idx) => {
+  cards.forEach(src => {
+    const sw = cardW(src);
+    src.fields.forEach((f, fi) => {
       if (!f.relTo) return;
-      const target = cards.find(t => t.id === f.relTo);
-      if (!target) return;
+      const tgt = cards.find(c => c.id === f.relTo);
+      if (!tgt) return;
+      const tw = cardW(tgt);
+      const kind = relKind(f.type) || "m2o";
+      const color = LINE_COLOR[kind];
 
-      const fromX = c.x + ERD_CARD_W;
-      const fromY = c.y + ERD_HEAD_H + idx * ERD_FIELD_H + ERD_FIELD_H / 2;
-      const toX   = target.x;
-      const toY   = target.y + ERD_HEAD_H / 2;
-      
-      const goingLeft = toX < fromX;
-      const sx = goingLeft ? c.x : fromX;
-      
-      lines.push({ sx, sy: fromY, tx: toX, ty: toY, type: f.type });
+      // Source port: right edge at field row y
+      const sx = src.x + sw;
+      const sy = src.y + HEAD_H + COL_HEAD_H + fi * FIELD_H + FIELD_H / 2;
+      // Target port: left edge at header y
+      const tx = tgt.x;
+      const ty = tgt.y + HEAD_H / 2;
+
+      let c1x, c2x;
+      if (sx <= tx) {                      // source left of target
+        const gap = tx - sx;
+        c1x = sx + gap * 0.5; c2x = tx - gap * 0.5;
+      } else if (src.x >= tgt.x + tw) {    // source right of target
+        const gap = sx - tgt.x - tw;
+        c1x = sx + Math.max(gap * 0.5, 40);
+        c2x = tx - Math.max(gap * 0.5, 40);
+      } else {                              // overlapping — route with wide handles
+        c1x = sx + 80; c2x = tx - 80;
+      }
+
+      const d = `M${sx},${sy} C${c1x},${sy} ${c2x},${ty} ${tx},${ty}`;
+      lines.push({ d, sx, sy, color, kind, dashed: kind === "o2m" });
     });
   });
 
   return (
     <div className="erd-wrap">
+      {/* Toolbar */}
       <div className="erd-toolbar">
-        <button className="bpmn-add" onClick={addCard}><i className="ti ti-plus"></i> Thêm model</button>
+        <button className="erd-add-btn" onClick={addCard}>
+          <i className="ti ti-plus"/> Thêm model
+        </button>
         <div className="erd-legend">
-          <span className="erd-leg-pill m2o">M2o</span> Many2one
-          <span className="erd-leg-pill o2m">O2m</span> One2many
-          <span className="erd-leg-pill m2m">M2m</span> Many2many
+          <span className="erd-leg-chip chip-m2o">M2o</span> Many2one
+          <span className="erd-leg-chip chip-o2m">O2m</span> One2many
+          <span className="erd-leg-chip chip-m2m">M2m</span> Many2many
         </div>
-        <span className="bpmn-help">Kéo header để di chuyển · Click field để sửa</span>
+        <span className="erd-hint">Kéo header để di chuyển · Click field để sửa</span>
       </div>
 
-      <div className="erd-canvas-wrap" 
-           ref={wrapRef} 
-           onMouseMove={onMouseMove} 
-           onMouseUp={onMouseUp} 
-           onMouseLeave={onMouseUp}>
-        
-        <svg className="erd-svg" width={W} height={H}>
-          <defs>
-            <marker id="erd-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0 L10,5 L0,10 Z" fill="#999" />
-            </marker>
-            <pattern id="erd-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="12" cy="12" r="0.6" fill="#ddd" />
-            </pattern>
-          </defs>
-          <rect width={W} height={H} fill="url(#erd-grid)" />
+      {/* Canvas */}
+      <div className="erd-canvas" ref={wrapRef}
+           onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}>
 
-          {lines.map((ln, i) => {
-            const dx = ln.tx - ln.sx;
-            const c1x = ln.sx + (dx > 0 ? 60 : -60);
-            const c2x = ln.tx - (dx > 0 ? 60 : -60);
-            const d = `M${ln.sx},${ln.sy} C${c1x},${ln.sy} ${c2x},${ln.ty} ${ln.tx},${ln.ty}`;
-            
-            // Màu sắc đường kẻ dựa trên loại quan hệ
-            const color = ln.type?.includes("One2many") ? "#378ADD" 
-                        : ln.type?.includes("Many2many") ? "#8a3361" 
-                        : "#1F6B40";
-            
-            return (
-              <g key={i}>
-                <path d={d} fill="none" stroke={color} strokeWidth="1.5" markerEnd="url(#erd-arrow)" opacity="0.7" />
-                <circle cx={ln.sx} cy={ln.sy} r="3" fill={color} />
-              </g>
-            );
-          })}
+        {/* SVG layer: dot-grid + arrows */}
+        <svg className="erd-svg" width={svgW} height={svgH}>
+          <defs>
+            <pattern id="erd-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="12" cy="12" r="0.75" fill="#D1D5DB"/>
+            </pattern>
+            {/* Per-color arrowhead markers */}
+            {Object.entries(LINE_COLOR).map(([k, col]) => (
+              <marker key={k} id={`earr-${k}`}
+                      viewBox="0 0 10 10" refX="9" refY="5"
+                      markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0,1 L9,5 L0,9 Z" fill={col}/>
+              </marker>
+            ))}
+          </defs>
+          <rect width={svgW} height={svgH} fill="url(#erd-dots)"/>
+
+          {lines.map((ln, i) => (
+            <g key={i}>
+              {/* White halo for readability over cards */}
+              <path d={ln.d} fill="none" stroke="#fff" strokeWidth="4" opacity="0.7"/>
+              <path d={ln.d} fill="none" stroke={ln.color} strokeWidth="1.8"
+                    strokeDasharray={ln.dashed ? "5,3" : undefined}
+                    markerEnd={`url(#earr-${ln.kind})`}/>
+              {/* Source dot */}
+              <circle cx={ln.sx} cy={ln.sy} r="4" fill={ln.color}/>
+              <circle cx={ln.sx} cy={ln.sy} r="2.5" fill="#fff"/>
+            </g>
+          ))}
         </svg>
 
-        {cards.map(c => (
-          <div key={c.id} className="erd-card" style={{ left: c.x, top: c.y, width: ERD_CARD_W }}>
-            <div className="erd-card-head" 
-                 style={{ background: c.color, cursor: drag?.id === c.id ? "grabbing" : "grab" }}
-                 onMouseDown={(e) => onMouseDownCard(e, c)}>
-              <i className="ti ti-table"></i>
-              <input
-                className="erd-card-name"
-                value={c.name}
-                onChange={(e) => updCardName(c.id, e.target.value)}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-              <button className="erd-del" onClick={() => delCard(c.id)} title="Xóa model">
-                <i className="ti ti-trash"></i>
-              </button>
-            </div>
-            
-            <div className="erd-fields">
-              {c.fields.map((f, i) => (
-                <div key={i} className="erd-field" style={{ height: ERD_FIELD_H }}>
-                  <input className="erd-f-name" value={f.name} placeholder="field_name"
-                         onChange={(e) => updField(c.id, i, "name", e.target.value)} />
-                  <input className="erd-f-type" value={f.type} placeholder="Char"
-                         onChange={(e) => updField(c.id, i, "type", e.target.value)} />
-                  
-                  {relIcon(f.type) && (
-                    <span className={`erd-rel-chip rel-${relIcon(f.type)}`}>{relIcon(f.type)}</span>
-                  )}
-                  
-                  <input className="erd-f-desc" value={f.desc} placeholder="Mô tả..."
-                         onChange={(e) => updField(c.id, i, "desc", e.target.value)} />
-                  
-                  {f.req && <span className="erd-req">*</span>}
-                  <button className="erd-f-del" onClick={() => delField(c.id, i)}><i className="ti ti-x"></i></button>
+        {/* Model cards */}
+        {cards.map(c => {
+          const cw   = cardW(c);
+          const nw   = c.colW?.name || NAME_W_DEF;
+          const tw   = c.colW?.type || TYPE_W_DEF;
+
+          return (
+            <div key={c.id} className="erd-card"
+                 style={{ left: c.x, top: c.y, width: cw,
+                          cursor: drag?.id === c.id ? "grabbing" : undefined }}>
+
+              {/* Header */}
+              <div className="erd-card-head" style={{ background: c.color }}
+                   onMouseDown={e => onHeadDown(e, c)}>
+                <i className="ti ti-table-column" style={{ fontSize:12, opacity:0.85, flexShrink:0 }}/>
+                <input className="erd-card-name-input" value={c.name}
+                       onChange={e => updCardName(c.id, e.target.value)}
+                       onMouseDown={e => e.stopPropagation()}/>
+
+                {/* Color picker trigger */}
+                <button className="erd-color-dot-btn" title="Đổi màu"
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); setColorPick(colorPick === c.id ? null : c.id); }}>
+                  <span className="erd-color-dot" style={{ background: c.color }}/>
+                  <i className="ti ti-palette"/>
+                </button>
+
+                <button className="erd-head-del" title="Xóa model"
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={() => delCard(c.id)}>
+                  <i className="ti ti-trash"/>
+                </button>
+              </div>
+
+              {/* Color picker popover */}
+              {colorPick === c.id && (
+                <div className="erd-color-pop" onMouseDown={e => e.stopPropagation()}>
+                  <div className="erd-color-swatches">
+                    {COLOR_PRESETS.map(col => (
+                      <button key={col} className={"erd-color-swatch" + (c.color === col ? " active" : "")}
+                              style={{ background: col }}
+                              onClick={() => { updCardColor(c.id, col); setColorPick(null); }}/>
+                    ))}
+                  </div>
+                  <label className="erd-color-custom-row">
+                    <span>Tuỳ chỉnh</span>
+                    <input type="color" value={c.color}
+                           onChange={e => updCardColor(c.id, e.target.value)}/>
+                  </label>
                 </div>
-              ))}
-              <button className="erd-add-field" onClick={() => addField(c.id)}>
-                <i className="ti ti-plus"></i> Thêm trường
-              </button>
+              )}
+
+              {/* Column header row with resize handles */}
+              <div className="erd-col-hdr-row">
+                <div className="erd-col-hdr" style={{ width: nw }}>
+                  <span>Tên trường</span>
+                  <div className="erd-col-rsz" onMouseDown={e => onColResDown(e, c, "name")}/>
+                </div>
+                <div className="erd-col-hdr" style={{ width: tw }}>
+                  <span>Kiểu</span>
+                  <div className="erd-col-rsz" onMouseDown={e => onColResDown(e, c, "type")}/>
+                </div>
+                <div className="erd-col-hdr" style={{ flex:1, minWidth:0 }}>
+                  <span>Mô tả</span>
+                </div>
+                <div className="erd-col-hdr" style={{ width:42, flexShrink:0 }}/>
+              </div>
+
+              {/* Fields */}
+              <div className="erd-fields">
+                {c.fields.map((f, fi) => {
+                  const chip = relChip(f.type);
+                  return (
+                    <div key={fi} className="erd-field" style={{ height: FIELD_H }}>
+
+                      <input className="erd-f-name" style={{ width: nw, flexShrink:0 }}
+                             value={f.name} placeholder="field_name"
+                             onChange={e => updField(c.id, fi, "name", e.target.value)}
+                             onMouseDown={e => e.stopPropagation()}/>
+
+                      <select className="erd-f-type" style={{ width: tw, flexShrink:0 }}
+                              value={f.type}
+                              onChange={e => updField(c.id, fi, "type", e.target.value)}
+                              onMouseDown={e => e.stopPropagation()}>
+                        {FIELD_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+
+                      {chip && <span className={"erd-rel-chip " + chip.cls}>{chip.label}</span>}
+
+                      {REL_TYPES.includes(f.type) && (
+                        <select className="erd-f-rel"
+                                value={f.relTo || ""}
+                                onChange={e => updField(c.id, fi, "relTo", e.target.value || undefined)}
+                                onMouseDown={e => e.stopPropagation()}>
+                          <option value="">→ model</option>
+                          {cards.filter(x => x.id !== c.id).map(x => (
+                            <option key={x.id} value={x.id}>{x.name}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      <input className="erd-f-desc" style={{ flex:1, minWidth:0 }}
+                             value={f.desc} placeholder="Mô tả"
+                             onChange={e => updField(c.id, fi, "desc", e.target.value)}
+                             onMouseDown={e => e.stopPropagation()}/>
+
+                      {/* Required checkbox */}
+                      <label className="erd-req-wrap" title="Bắt buộc"
+                             onMouseDown={e => e.stopPropagation()}>
+                        <input type="checkbox" className="erd-req-chk"
+                               checked={!!f.req}
+                               onChange={() => toggleReq(c.id, fi)}/>
+                        <span className="erd-req-star">*</span>
+                      </label>
+
+                      <button className="erd-f-del"
+                              onMouseDown={e => e.stopPropagation()}
+                              onClick={e => { e.stopPropagation(); delField(c.id, fi); }}>
+                        <i className="ti ti-x"/>
+                      </button>
+                    </div>
+                  );
+                })}
+
+                <button className="erd-add-field" onClick={() => addField(c.id)}>
+                  <i className="ti ti-plus"/> Thêm trường
+                </button>
+              </div>
+
+              {/* Card right-edge resize handle */}
+              <div className="erd-card-rsz" onMouseDown={e => onCardResizeDown(e, c)}/>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
+
+export default ERDModels;

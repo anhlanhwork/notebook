@@ -1,13 +1,11 @@
-/* Module list screen — grid of module cards.
-   Click a card to open that module's handbook.
-   Add new module via modal. */
+/* Module list screen — shows all modules inside a notebook. */
 
 import React, { useState } from 'react';
 
 const STATUS_META = {
-  pending:  { label: "Chưa bắt đầu",   color: "var(--text3)",  bg: "var(--bg3)" },
+  pending:  { label: "Chưa bắt đầu",   color: "var(--text3)",   bg: "var(--bg3)"     },
   studying: { label: "Đang nghiên cứu", color: "var(--warn-bd)", bg: "var(--warn-bg)" },
-  done:     { label: "Hoàn thành",     color: "var(--success)", bg: "var(--success-bg)" }
+  done:     { label: "Hoàn thành",      color: "var(--success)", bg: "var(--success-bg)" }
 };
 
 const MODULE_ICONS = {
@@ -25,13 +23,15 @@ const PRESET_COLORS = [
   "#D85A30", "#7F77DD", "#D4537E", "#1D9E75", "#E24B4A"
 ];
 
-function ModuleListScreen({ data, setData, onOpen }) {
-  const [query, setQuery] = useState("");
+function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
+  const [query,        setQuery]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen,    setModalOpen]   = useState(false);
   const [draft, setDraft] = useState({ name: "", tech: "", color: PRESET_COLORS[0], category: "" });
 
-  const filtered = data.modules.filter(m => {
+  const modules = notebook.modules || [];
+
+  const filtered = modules.filter(m => {
     if (statusFilter !== "all" && m.status !== statusFilter) return false;
     if (!query) return true;
     const q = query.toLowerCase();
@@ -40,10 +40,10 @@ function ModuleListScreen({ data, setData, onOpen }) {
   });
 
   const counts = {
-    all:       data.modules.length,
-    studying:  data.modules.filter(m => m.status === "studying").length,
-    done:      data.modules.filter(m => m.status === "done").length,
-    pending:   data.modules.filter(m => m.status === "pending").length
+    all:      modules.length,
+    studying: modules.filter(m => m.status === "studying").length,
+    done:     modules.filter(m => m.status === "done").length,
+    pending:  modules.filter(m => m.status === "pending").length
   };
 
   function openAddModal() {
@@ -66,7 +66,7 @@ function ModuleListScreen({ data, setData, onOpen }) {
       mainFlows: [],
       features: []
     };
-    setData({ ...data, modules: [...data.modules, newMod] });
+    setNotebook({ ...notebook, modules: [...modules, newMod] });
     setModalOpen(false);
     onOpen(newMod.id);
   }
@@ -74,17 +74,31 @@ function ModuleListScreen({ data, setData, onOpen }) {
   function deleteModule(id, e) {
     e.stopPropagation();
     if (!confirm("Xóa module này khỏi sổ tay?")) return;
-    setData({ ...data, modules: data.modules.filter(m => m.id !== id) });
+    setNotebook({ ...notebook, modules: modules.filter(m => m.id !== id) });
   }
+
+  const totalFeatures = modules.reduce((s, m) => s + (m.features?.length || 0), 0);
 
   return (
     <div className="ml-screen">
       <div className="ml-header">
+        {onBack && (
+          <button className="ml-back" onClick={onBack}>
+            <i className="ti ti-arrow-left"></i> Trang chủ
+          </button>
+        )}
         <div className="ml-header-row">
-          <div>
-            <div className="eyebrow">Sổ tay nội bộ</div>
-            <h1 className="ml-title">Tất cả modules</h1>
-            <p className="ml-sub">{data.modules.length} module · {data.modules.reduce((s, m) => s + (m.features?.length || 0), 0)} tính năng đã ghi chép</p>
+          <div className="ml-header-hd">
+            <div className="ml-header-icon" style={{ background: notebook.color }}>
+              <i className={`ti ${notebook.icon || "ti-clipboard-list"}`}></i>
+            </div>
+            <div>
+              <div className="eyebrow">Sổ tay nội bộ</div>
+              <h1 className="ml-title">{notebook.name}</h1>
+              <p className="ml-sub">
+                {modules.length} module · {totalFeatures} tính năng đã ghi chép
+              </p>
+            </div>
           </div>
           <button className="btn-primary" onClick={openAddModal}>
             <i className="ti ti-plus"></i> Thêm module
@@ -122,7 +136,7 @@ function ModuleListScreen({ data, setData, onOpen }) {
       <div className="ml-grid">
         {filtered.map(m => {
           const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
-          const st = STATUS_META[m.status] || STATUS_META.pending;
+          const st   = STATUS_META[m.status] || STATUS_META.pending;
           const featCount = m.features?.length || 0;
           const flowCount = (m.mainFlows?.length || 0) +
                             (m.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
