@@ -2924,3 +2924,17 @@
   box-shadow: var(--shadow-1);
 }
 .login-btn-google svg { flex-shrink: 0; }
+.login-btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-error {
+  display: flex; align-items: flex-start; gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--danger-bg, #FEF2F2);
+  border: 0.5px solid var(--danger, #EF4444);
+  border-radius: var(--radius);
+  color: var(--danger, #EF4444);
+  font-size: 12.5px; line-height: 1.5;
+  margin-bottom: 16px;
+}
+.login-error i { font-size: 15px; flex-shrink: 0; margin-top: 1px; }

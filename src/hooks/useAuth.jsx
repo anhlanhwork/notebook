@@ -5,17 +5,21 @@ import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(undefined); // undefined = đang kiểm tra
+  const [user,      setUser]      = useState(undefined);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     return onAuthStateChanged(auth, u => setUser(u || null));
   }, []);
 
   async function signInGoogle() {
+    setAuthError(null);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') console.error('Auth error:', e);
+      if (e.code === 'auth/popup-closed-by-user') return;
+      console.error('Auth error:', e.code, e.message);
+      setAuthError(e.code);
     }
   }
 
@@ -23,6 +27,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user,
       loading: user === undefined,
+      authError,
       signInGoogle,
       logout: () => signOut(auth)
     }}>
