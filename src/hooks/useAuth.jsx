@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
       if (u && !isAllowed(u.email)) {
         await signOut(auth);
         setUser(null);
-        setAuthError('auth/email-not-allowed:' + u.email);
+        setAuthError('auth/email-not-allowed');
         return;
       }
       setUser(u || null);

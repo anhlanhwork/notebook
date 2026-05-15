@@ -74,10 +74,11 @@ function App() {
 
   /* Refs to avoid stale-closure issues in async callbacks */
   const dataRef           = useRef(data);
-  const isRemoteUpdateRef = useRef(false);   // true when setData comes from Firestore
-  const skipDirtyRef      = useRef(true);    // skip first render's dirty check
+  const isRemoteUpdateRef = useRef(false);
+  const skipDirtyRef      = useRef(true);
   const saveTimerRef      = useRef(null);
   const migrationDoneRef  = useRef(false);
+  const dataLoadedRef     = useRef(false);   // ref mirror of dataLoaded for async callbacks
   const urlRef            = useRef(parseUrl());
 
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -117,29 +118,28 @@ function App() {
 
     /* User is logged in — subscribe to their notebooks */
     const unsub = subscribeNotebooks(user.uid, async (notebooks) => {
+      /* One-time migration: Firestore trống → seed từ localStorage */
       if (!migrationDoneRef.current) {
         migrationDoneRef.current = true;
-
-        /* One-time migration: if Firestore is empty, seed from localStorage */
         if (notebooks.length === 0) {
           const local = consumeLocalStorage();
           const seed  = local || SEED_DATA.notebooks || [];
           if (seed.length > 0) {
             await Promise.all(seed.map(nb => upsertNotebook(user.uid, nb)));
-            /* onSnapshot will fire again with the migrated data */
-            return;
+            return; /* snapshot tiếp theo sẽ có dữ liệu */
           }
         }
+      }
 
-        /* First real snapshot: resolve URL → screen state */
-        isRemoteUpdateRef.current = true;
-        setData({ notebooks });
-        resolveUrl(notebooks);
+      /* Mọi snapshot đều cập nhật state */
+      isRemoteUpdateRef.current = true;
+      setData({ notebooks });
+
+      /* Lần đầu tiên có dữ liệu: resolve URL và đánh dấu loaded */
+      if (!dataLoadedRef.current) {
+        dataLoadedRef.current = true;
         setDataLoaded(true);
-      } else {
-        /* Subsequent snapshots (cross-tab / cross-device updates) */
-        isRemoteUpdateRef.current = true;
-        setData({ notebooks });
+        resolveUrl(notebooks);
       }
     });
 
