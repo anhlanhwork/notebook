@@ -331,7 +331,7 @@ function App() {
     );
   }
 
-  if (!user) return <LoginScreen />;
+  if (!user && screen !== "share") return <LoginScreen />;
 
   /* ── Main app ── */
   return (
