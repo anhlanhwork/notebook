@@ -1,6 +1,6 @@
 /* Shared view — rendered when user opens /share/{token} */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase.js';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -214,6 +214,139 @@ function SharedModuleCard({ module: m, onClick }) {
   );
 }
 
+/* ── Read-only ERD viewer ── */
+const ERD_CARD_W  = 290;
+const ERD_HEAD_H  = 36;
+const ERD_COL_H   = 22;
+const ERD_FIELD_H = 27;
+const ERD_NAME_W  = 88;
+const ERD_TYPE_W  = 72;
+const ERD_LINE    = { m2o: "#15803D", o2m: "#1D4ED8", m2m: "#7E22CE" };
+
+function erdKind(type) {
+  if (type === "Many2one")  return "m2o";
+  if (type === "One2many")  return "o2m";
+  if (type === "Many2many") return "m2m";
+  return null;
+}
+function erdChip(type) {
+  const k = erdKind(type); if (!k) return null;
+  return { m2o:{label:"M2o",cls:"chip-m2o"}, o2m:{label:"O2m",cls:"chip-o2m"}, m2m:{label:"M2m",cls:"chip-m2m"} }[k];
+}
+function erdCW(c) { return c.width || ERD_CARD_W; }
+function erdCH(c) { return ERD_HEAD_H + ERD_COL_H + (c.fields?.length || 0) * ERD_FIELD_H + 8; }
+
+function SharedERDView({ models }) {
+  const cards = models?.cards || [];
+  const wrapRef = useRef(null);
+  const [wrapSize, setWrapSize] = useState({ w: 900, h: 480 });
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver(([e]) => {
+      setWrapSize({ w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) });
+    });
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  if (!cards.length) return null;
+
+  const svgW = Math.max(...cards.map(c => c.x + erdCW(c) + 100), wrapSize.w);
+  const svgH = Math.max(...cards.map(c => c.y + erdCH(c) + 100), wrapSize.h);
+
+  const lines = [];
+  cards.forEach(src => {
+    const sw = erdCW(src);
+    (src.fields || []).forEach((f, fi) => {
+      if (!f.relTo) return;
+      const tgt = cards.find(c => c.id === f.relTo); if (!tgt) return;
+      const tw = erdCW(tgt);
+      const kind = erdKind(f.type) || "m2o";
+      const color = ERD_LINE[kind];
+      const sx = src.x + sw;
+      const sy = src.y + ERD_HEAD_H + ERD_COL_H + fi * ERD_FIELD_H + ERD_FIELD_H / 2;
+      const tx = tgt.x;
+      const ty = tgt.y + ERD_HEAD_H / 2;
+      let c1x, c2x;
+      if (sx <= tx) { const g = tx - sx; c1x = sx + g*0.5; c2x = tx - g*0.5; }
+      else if (src.x >= tgt.x + tw) { const g = sx - tgt.x - tw; c1x = sx + Math.max(g*0.5,40); c2x = tx - Math.max(g*0.5,40); }
+      else { c1x = sx + 80; c2x = tx - 80; }
+      lines.push({ d:`M${sx},${sy} C${c1x},${sy} ${c2x},${ty} ${tx},${ty}`, sx, sy, color, kind, dashed: kind==="o2m" });
+    });
+  });
+
+  return (
+    <div className="erd-wrap erd-wrap--readonly">
+      <div className="erd-toolbar">
+        <div className="erd-legend">
+          <span className="erd-leg-chip chip-m2o">M2o</span> Many2one
+          <span className="erd-leg-chip chip-o2m">O2m</span> One2many
+          <span className="erd-leg-chip chip-m2m">M2m</span> Many2many
+        </div>
+      </div>
+      <div className="erd-canvas" ref={wrapRef}>
+        <svg className="erd-svg" width={svgW} height={svgH}>
+          <defs>
+            <pattern id="erd-dots-ro" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="12" cy="12" r="0.75" fill="#D1D5DB"/>
+            </pattern>
+            {Object.entries(ERD_LINE).map(([k, col]) => (
+              <marker key={k} id={`earr-ro-${k}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0,1 L9,5 L0,9 Z" fill={col}/>
+              </marker>
+            ))}
+          </defs>
+          <rect width={svgW} height={svgH} fill="url(#erd-dots-ro)"/>
+          {lines.map((ln, i) => (
+            <g key={i}>
+              <path d={ln.d} fill="none" stroke="#fff" strokeWidth="4" opacity="0.7"/>
+              <path d={ln.d} fill="none" stroke={ln.color} strokeWidth="1.8"
+                    strokeDasharray={ln.dashed ? "5,3" : undefined}
+                    markerEnd={`url(#earr-ro-${ln.kind})`}/>
+              <circle cx={ln.sx} cy={ln.sy} r="4" fill={ln.color}/>
+              <circle cx={ln.sx} cy={ln.sy} r="2.5" fill="#fff"/>
+            </g>
+          ))}
+        </svg>
+        {cards.map(c => {
+          const cw = erdCW(c);
+          const nw = c.colW?.name || ERD_NAME_W;
+          const tw = c.colW?.type || ERD_TYPE_W;
+          return (
+            <div key={c.id} className="erd-card" style={{ left: c.x, top: c.y, width: cw, cursor: "default" }}>
+              <div className="erd-card-head" style={{ background: c.color }}>
+                <i className="ti ti-table-column" style={{ fontSize:12, opacity:0.85, flexShrink:0 }}/>
+                <span style={{ flex:1, fontWeight:600, fontSize:13, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", padding:"0 4px" }}>{c.name}</span>
+              </div>
+              <div className="erd-col-hdr-row">
+                <div className="erd-col-hdr" style={{ width: nw }}><span>TÊN TRƯỜNG</span></div>
+                <div className="erd-col-hdr" style={{ width: tw }}><span>KIỂU</span></div>
+                <div className="erd-col-hdr" style={{ flex:1, minWidth:0 }}><span>MÔ TẢ</span></div>
+                <div className="erd-col-hdr" style={{ width:20, flexShrink:0 }}/>
+              </div>
+              <div className="erd-fields">
+                {(c.fields || []).map((f, fi) => {
+                  const chip = erdChip(f.type);
+                  return (
+                    <div key={fi} className="erd-field" style={{ height: ERD_FIELD_H }}>
+                      <span style={{ width:nw, flexShrink:0, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", padding:"0 4px" }}>{f.name}</span>
+                      <span style={{ width:tw, flexShrink:0, fontSize:11, color:"var(--text2)", padding:"0 2px" }}>{f.type}</span>
+                      {chip && <span className={"erd-rel-chip " + chip.cls}>{chip.label}</span>}
+                      <span style={{ flex:1, minWidth:0, fontSize:12, color:"var(--text2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", padding:"0 4px" }}>{f.desc}</span>
+                      {f.req && <span style={{ color:"#DC2626", fontSize:13, fontWeight:700, paddingRight:4 }}>*</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ── Shared Module detail ── */
 function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
   const [openFeat, setOpenFeat] = useState(null);
@@ -312,6 +445,13 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
                 {openFeat === f.id && (
                   <div className="shared-feature-body">
                     {f.desc && <div className="shared-feature-desc md" dangerouslySetInnerHTML={{ __html: f.desc }} />}
+
+                    {(f.models?.cards?.length || 0) > 0 && (
+                      <div className="shared-feature-section">
+                        <div className="shared-feature-section-label">Models ({f.models.cards.length})</div>
+                        <SharedERDView models={f.models} />
+                      </div>
+                    )}
 
                     {(f.flows || []).length > 0 && (
                       <div className="shared-feature-section">

@@ -1904,6 +1904,11 @@
 .chip-o2m { background: #DBEAFE; color: #1D4ED8; }
 .chip-m2m { background: #FAE8FF; color: #7E22CE; }
 
+/* ── ERD read-only (shared view) ── */
+.erd-wrap--readonly { height: 520px; min-height: 520px; flex: none; border-radius: 10px; overflow: hidden; border: 0.5px solid var(--border); }
+.erd-wrap--readonly .erd-canvas { user-select: text; }
+.erd-wrap--readonly .erd-card   { cursor: default; user-select: text; }
+
 /* ============================================================
    BPMN EDITOR
    ============================================================ */
