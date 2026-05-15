@@ -18,10 +18,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     return onAuthStateChanged(auth, async u => {
       if (u && !isAllowed(u.email)) {
-        /* Tài khoản không trong whitelist — sign out ngay */
         await signOut(auth);
         setUser(null);
-        setAuthError('auth/email-not-allowed');
+        setAuthError('auth/email-not-allowed:' + u.email);
         return;
       }
       setUser(u || null);

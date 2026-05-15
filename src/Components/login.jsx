@@ -1,9 +1,7 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 
-const ERROR_MSG = {
-  'auth/email-not-allowed':
-    'Tài khoản này không có quyền truy cập.',
+const ERROR_MSG = {};
   'auth/unauthorized-domain':
     'Domain chưa được cấp quyền trong Firebase. Vào Firebase Console → Authentication → Settings → Authorized domains và thêm domain Vercel của bạn.',
   'auth/popup-blocked':
@@ -23,7 +21,7 @@ export default function LoginScreen() {
   }
 
   const errMsg = authError
-    ? (ERROR_MSG[authError] || `Đăng nhập thất bại (${authError}). Vui lòng thử lại.`)
+    ? (ERROR_MSG[authError] || `Debug: "${authError}"`)
     : null;
 
   return (
