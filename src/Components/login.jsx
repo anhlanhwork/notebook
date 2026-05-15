@@ -7,13 +7,6 @@ const ERROR_MSG = {
   'auth/popup-blocked':       'Trình duyệt đã chặn popup. Vui lòng cho phép rồi thử lại.',
   'auth/network-request-failed': 'Lỗi kết nối mạng. Kiểm tra internet rồi thử lại.',
 };
-  'auth/unauthorized-domain':
-    'Domain chưa được cấp quyền trong Firebase. Vào Firebase Console → Authentication → Settings → Authorized domains và thêm domain Vercel của bạn.',
-  'auth/popup-blocked':
-    'Trình duyệt đã chặn cửa sổ đăng nhập. Vui lòng cho phép popup cho trang này rồi thử lại.',
-  'auth/network-request-failed':
-    'Lỗi kết nối mạng. Kiểm tra internet rồi thử lại.',
-};
 
 export default function LoginScreen() {
   const { signInGoogle, authError, loading } = useAuth();
