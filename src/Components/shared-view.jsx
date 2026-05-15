@@ -347,9 +347,150 @@ function SharedERDView({ models }) {
   );
 }
 
+/* ── Read-only BPMN viewer ── */
+const BPMN_NODE_W = 140, BPMN_NODE_H = 56, BPMN_GATE = 58, BPMN_EVENT = 38;
+const BPMN_ACCENT = '#5BAA50', BPMN_AMBER = '#F59E0B', BPMN_AMBER_BG = '#FFFBEB';
+
+function bpmnBox(n) {
+  if (n.type === 'task')    return { cx: n.x+BPMN_NODE_W/2, cy: n.y+BPMN_NODE_H/2, w: BPMN_NODE_W, h: BPMN_NODE_H };
+  if (n.type === 'gateway') return { cx: n.x+BPMN_GATE/2,   cy: n.y+BPMN_GATE/2,   w: BPMN_GATE,   h: BPMN_GATE   };
+  return                          { cx: n.x+BPMN_EVENT/2,  cy: n.y+BPMN_EVENT/2,  w: BPMN_EVENT,  h: BPMN_EVENT  };
+}
+function bpmnEdgePt(box, tx, ty) {
+  const dx = tx-box.cx, dy = ty-box.cy;
+  const hw = box.w/2, hh = box.h/2;
+  const s = Math.min(hw/(Math.abs(dx)||.001), hh/(Math.abs(dy)||.001));
+  return { x: box.cx+dx*s, y: box.cy+dy*s };
+}
+
+function SharedBPMNView({ flows = [] }) {
+  const [activeId, setActiveId] = useState(flows[0]?.id || null);
+  const wrapRef = useRef(null);
+  const [wrapSize, setWrapSize] = useState({ w: 700, h: 360 });
+
+  useEffect(() => {
+    if (flows.length && !flows.find(f => f.id === activeId)) setActiveId(flows[0].id);
+  }, [flows, activeId]);
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const ro = new ResizeObserver(([e]) => setWrapSize({ w: Math.floor(e.contentRect.width), h: Math.floor(e.contentRect.height) }));
+    ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  if (!flows.length) return null;
+  const flow  = flows.find(f => f.id === activeId) || flows[0];
+  const nodes = flow.nodes || [];
+  const edges = flow.edges || [];
+  const W = nodes.length ? Math.max(...nodes.map(n => n.x + BPMN_NODE_W + 120), wrapSize.w) : wrapSize.w;
+  const H = nodes.length ? Math.max(...nodes.map(n => n.y + BPMN_NODE_H + 120), wrapSize.h) : wrapSize.h;
+
+  return (
+    <div className="shared-bpmn">
+      {flows.length > 1 && (
+        <div className="shared-bpmn-tabs">
+          {flows.map(f => (
+            <button key={f.id} className={"shared-bpmn-tab" + (f.id === flow.id ? " active" : "")} onClick={() => setActiveId(f.id)}>
+              <i className="ti ti-git-branch"></i>{f.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {flows.length === 1 && <div className="shared-bpmn-title"><i className="ti ti-git-branch"></i>{flows[0].name}</div>}
+
+      <div className="shared-bpmn-canvas" ref={wrapRef}>
+        {!nodes.length
+          ? <div className="shared-empty">Luồng chưa có bước nào.</div>
+          : (
+            <svg width={W} height={H}>
+              <defs>
+                <marker id="bpmn-arr-ro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M0,1 L9,5 L0,9 Z" fill="#9CA3AF"/>
+                </marker>
+                <pattern id="bpmn-dots-ro" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="10" cy="10" r=".9" fill="#D1D5DB"/>
+                </pattern>
+                <filter id="bpmn-sh-ro" x="-10%" y="-15%" width="120%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000" floodOpacity=".07"/>
+                </filter>
+              </defs>
+              <rect width={W} height={H} fill="#F9FAFB"/>
+              <rect width={W} height={H} fill="url(#bpmn-dots-ro)"/>
+
+              {edges.map(e => {
+                const fn = nodes.find(n => n.id===e.from), tn = nodes.find(n => n.id===e.to);
+                if (!fn || !tn) return null;
+                const fp = bpmnEdgePt(bpmnBox(fn), bpmnBox(tn).cx, bpmnBox(tn).cy);
+                const tp = bpmnEdgePt(bpmnBox(tn), bpmnBox(fn).cx, bpmnBox(fn).cy);
+                const cx = Math.max(30, Math.abs(tp.x-fp.x)*0.45);
+                const d  = `M${fp.x},${fp.y} C${fp.x+cx},${fp.y} ${tp.x-cx},${tp.y} ${tp.x},${tp.y}`;
+                const mx = (fp.x+tp.x)/2, my = (fp.y+tp.y)/2-6;
+                const neg = e.label?.toLowerCase().includes('không') || e.label?.toLowerCase().includes('no');
+                return (
+                  <g key={e.id}>
+                    <path d={d} fill="none" stroke={neg?'#9CA3AF':'#6B7280'} strokeWidth="1.5"
+                          strokeDasharray={neg?'5 4':undefined} markerEnd="url(#bpmn-arr-ro)"/>
+                    {e.label && (
+                      <g>
+                        <rect x={mx-e.label.length*3.8-8} y={my-9} width={e.label.length*7.6+16} height={18}
+                              rx="9" fill="white" stroke="#E5E7EB" strokeWidth=".75"/>
+                        <text x={mx} y={my+4.5} textAnchor="middle" fontSize="10.5" fill="#6B7280" fontWeight="500">{e.label}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+
+              {nodes.map(n => {
+                const box = bpmnBox(n);
+                return (
+                  <g key={n.id}>
+                    {n.type==='task' && (<>
+                      <rect x={n.x} y={n.y} width={BPMN_NODE_W} height={BPMN_NODE_H} rx="8"
+                            fill="white" stroke={BPMN_ACCENT} strokeWidth="1.5" filter="url(#bpmn-sh-ro)"/>
+                      <rect x={n.x} y={n.y} width="5" height={BPMN_NODE_H} rx="3" fill={BPMN_ACCENT}/>
+                      {(n.label||'').split('\n').map((ln,i,a)=>(
+                        <text key={i} x={n.x+BPMN_NODE_W/2+2} y={n.y+BPMN_NODE_H/2-(a.length-1)*7+i*14+4}
+                              textAnchor="middle" fontSize="11.5" fill="#111827" fontWeight="600">{ln}</text>
+                      ))}
+                      {n.sub && <text x={n.x+BPMN_NODE_W/2+2} y={n.y+BPMN_NODE_H-9}
+                                      textAnchor="middle" fontSize="9.5" fill="#9CA3AF">{n.sub}</text>}
+                    </>)}
+                    {n.type==='gateway' && (<>
+                      <g transform={`translate(${n.x+BPMN_GATE/2},${n.y+BPMN_GATE/2})`}>
+                        <rect x={-BPMN_GATE/2} y={-BPMN_GATE/2} width={BPMN_GATE} height={BPMN_GATE}
+                              transform="rotate(45)" rx="5" fill={BPMN_AMBER_BG} stroke={BPMN_AMBER} strokeWidth="1.5" filter="url(#bpmn-sh-ro)"/>
+                        <text textAnchor="middle" y="5.5" fontSize="17" fill={BPMN_AMBER} fontWeight="700">?</text>
+                      </g>
+                      <text x={n.x+BPMN_GATE/2} y={n.y+BPMN_GATE+17} textAnchor="middle" fontSize="10.5" fill="#6B7280" fontWeight="500">{n.label}</text>
+                    </>)}
+                    {n.type==='start' && (<>
+                      <circle cx={box.cx} cy={box.cy} r={BPMN_EVENT/2} fill="white" stroke={BPMN_ACCENT} strokeWidth="1.75" filter="url(#bpmn-sh-ro)"/>
+                      <text x={box.cx} y={n.y+BPMN_EVENT+17} textAnchor="middle" fontSize="10.5" fill="#6B7280" fontWeight="500">{n.label}</text>
+                    </>)}
+                    {n.type==='end' && (<>
+                      <circle cx={box.cx} cy={box.cy} r={BPMN_EVENT/2} fill="white" stroke="#111827" strokeWidth="3.5" filter="url(#bpmn-sh-ro)"/>
+                      <circle cx={box.cx} cy={box.cy} r={BPMN_EVENT/2-6} fill="#111827"/>
+                      <text x={box.cx} y={n.y+BPMN_EVENT+17} textAnchor="middle" fontSize="10.5" fill="#6B7280" fontWeight="500">{n.label}</text>
+                    </>)}
+                  </g>
+                );
+              })}
+            </svg>
+          )
+        }
+      </div>
+    </div>
+  );
+}
+
 /* ── Shared Module detail ── */
 function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
   const [openFeat, setOpenFeat] = useState(null);
+  const [featTabs, setFeatTabs] = useState({});
+  function getFeatTab(fid) { return featTabs[fid] || "models"; }
+  function setFeatTab(fid, tab) { setFeatTabs(prev => ({ ...prev, [fid]: tab })); }
   const st = STATUS_META[mod.status] || STATUS_META.pending;
 
   return (
@@ -424,73 +565,80 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
         <div className="shared-section">
           <h2 className="shared-section-title">Tính năng ({mod.features.length})</h2>
           <div className="shared-features">
-            {mod.features.map(f => (
-              <div key={f.id} className={`shared-feature${openFeat === f.id ? " open" : ""}`}>
-                <button
-                  className="shared-feature-head"
-                  onClick={() => setOpenFeat(openFeat === f.id ? null : f.id)}
-                >
-                  <span className="shared-feature-name">{f.name}</span>
-                  <span className="shared-feature-counts">
-                    {(f.flows?.length || 0) > 0 && (
-                      <span><i className="ti ti-git-branch"></i> {f.flows.length} luồng</span>
-                    )}
-                    {(f.detailBlocks?.length || 0) > 0 && (
-                      <span><i className="ti ti-list"></i> {f.detailBlocks.length} chi tiết</span>
-                    )}
-                  </span>
-                  <i className={`ti ${openFeat === f.id ? "ti-chevron-up" : "ti-chevron-down"} shared-feature-chevron`}></i>
-                </button>
+            {mod.features.map(f => {
+              const modelCount  = f.models?.cards?.length  || 0;
+              const flowCount   = f.flows?.length           || 0;
+              const detailCount = f.detailBlocks?.length    || 0;
+              const tabs = [
+                { key:"models",  icon:"ti-table",        label:"Models",             count: modelCount  },
+                { key:"flows",   icon:"ti-git-branch",   label:"Luồng xử lý",        count: flowCount   },
+                { key:"details", icon:"ti-list-details", label:"Tính năng chi tiết", count: detailCount },
+              ].filter(t => t.count > 0);
+              const curTab = getFeatTab(f.id) || tabs[0]?.key;
 
-                {openFeat === f.id && (
-                  <div className="shared-feature-body">
-                    {f.desc && <div className="shared-feature-desc md" dangerouslySetInnerHTML={{ __html: f.desc }} />}
+              return (
+                <div key={f.id} className={`shared-feature${openFeat === f.id ? " open" : ""}`}>
+                  <button
+                    className="shared-feature-head"
+                    onClick={() => setOpenFeat(openFeat === f.id ? null : f.id)}
+                  >
+                    <span className="shared-feature-name">{f.name}</span>
+                    <span className="shared-feature-counts">
+                      {modelCount  > 0 && <span><i className="ti ti-table"></i> {modelCount} model</span>}
+                      {flowCount   > 0 && <span><i className="ti ti-git-branch"></i> {flowCount} luồng</span>}
+                      {detailCount > 0 && <span><i className="ti ti-list-details"></i> {detailCount} chi tiết</span>}
+                    </span>
+                    <i className={`ti ${openFeat === f.id ? "ti-chevron-up" : "ti-chevron-down"} shared-feature-chevron`}></i>
+                  </button>
 
-                    {(f.models?.cards?.length || 0) > 0 && (
-                      <div className="shared-feature-section">
-                        <div className="shared-feature-section-label">Models ({f.models.cards.length})</div>
-                        <SharedERDView models={f.models} />
-                      </div>
-                    )}
+                  {openFeat === f.id && (
+                    <div className="shared-feature-body">
+                      {f.desc && <div className="shared-feature-desc md" dangerouslySetInnerHTML={{ __html: f.desc }} />}
 
-                    {(f.flows || []).length > 0 && (
-                      <div className="shared-feature-section">
-                        <div className="shared-feature-section-label">Luồng nghiệp vụ</div>
-                        <div className="shared-flows">
-                          {f.flows.map((flow, i) => (
-                            <div key={i} className="shared-flow">
-                              <div className="shared-flow-name">{flow.name}</div>
-                              {(flow.steps || []).length > 0 && (
-                                <div className="shared-flow-steps">
-                                  {flow.steps.map((step, j) => (
-                                    <div key={j} className="shared-flow-step">
-                                      <span className="shared-flow-step-num">{j + 1}</span>
-                                      <span>{typeof step === "string" ? step : step.action || JSON.stringify(step)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {(f.detailBlocks || []).length > 0 && (
-                      <div className="shared-feature-section">
-                        <div className="shared-feature-section-label">Chi tiết bổ sung</div>
-                        {f.detailBlocks.map((block, i) => (
-                          <div key={i} className="shared-block">
-                            {block.title   && <div className="shared-block-title">{block.title}</div>}
-                            {block.content && <div className="shared-block-content md" dangerouslySetInnerHTML={{ __html: block.content }} />}
+                      {tabs.length > 0 && (
+                        <>
+                          <div className="shared-feat-tabs">
+                            {tabs.map(t => (
+                              <button
+                                key={t.key}
+                                className={"shared-feat-tab" + (curTab === t.key ? " active" : "")}
+                                onClick={() => setFeatTab(f.id, t.key)}
+                              >
+                                <i className={"ti " + t.icon}></i>
+                                {t.label}
+                                <span className="shared-feat-tab-count">{t.count}</span>
+                              </button>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+
+                          {curTab === "models" && modelCount > 0 && (
+                            <div className="shared-tab-content">
+                              <SharedERDView models={f.models} />
+                            </div>
+                          )}
+                          {curTab === "flows" && flowCount > 0 && (
+                            <div className="shared-tab-content">
+                              <SharedBPMNView flows={f.flows} />
+                            </div>
+                          )}
+                          {curTab === "details" && detailCount > 0 && (
+                            <div className="shared-tab-content">
+                              {f.detailBlocks.map((block, i) => (
+                                <div key={i} className="shared-block">
+                                  {block.icon && <div className="shared-block-icon"><i className={"ti " + block.icon}></i></div>}
+                                  {block.title   && <div className="shared-block-title">{block.title}</div>}
+                                  {block.content && <div className="shared-block-content md" dangerouslySetInnerHTML={{ __html: block.content }} />}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
