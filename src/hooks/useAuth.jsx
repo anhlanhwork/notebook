@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../../firebase.js';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 
-/* Chỉ email thuộc domain này mới được đăng nhập */
-const ALLOWED_DOMAIN = 'anhlanh.work';
+/* Chỉ email này mới được đăng nhập */
+const ALLOWED_EMAIL = 'anhlanh.wwork@gmail.com';
 
 function isAllowed(email) {
-  return typeof email === 'string' && email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN);
+  return typeof email === 'string' && email.toLowerCase() === ALLOWED_EMAIL;
 }
 
 const AuthContext = createContext(null);
