@@ -1,11 +1,15 @@
-/* Root App — routes: Home (notebooks) → ModuleList → Handbook */
+/* Root App — Auth gate + Firestore sync + routing */
 
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './sidebar.jsx';
 import { Editor } from './editor.jsx';
 import HomeScreen from './home.jsx';
 import ModuleListScreen from './module-list.jsx';
+import { SharedView } from './shared-view.jsx';
+import LoginScreen from './login.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor, TweakButton } from './tweaks-panel.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { subscribeNotebooks, upsertNotebook, removeNotebook } from '../services/db.js';
 import SEED_DATA from '../Scripts/data.js';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -17,62 +21,68 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 const LS_KEY     = "notebook_v3";
 const LS_KEY_OLD = "odoo18_handbook_v2";
 
-/* Shared init — reads storage once, resolves URL → state */
-const initState = (() => {
-  let data;
+/* Parse current URL into a typed descriptor (no storage reads) */
+function parseUrl() {
+  const shareMatch = location.pathname.match(/^\/share\/([^/]+)/);
+  const nbMatch    = location.pathname.match(/^\/notebook\/([^/]+)/);
+  const modMatch   = location.pathname.match(/^\/module\/([^/]+)/);
+  if (shareMatch) return { type: 'share',    token: shareMatch[1] };
+  if (nbMatch)    return { type: 'notebook', nbId:  nbMatch[1] };
+  if (modMatch)   return { type: 'module',   modId: modMatch[1] };
+  return { type: 'home' };
+}
+
+/* Read old localStorage data for one-time migration, then clear it */
+function consumeLocalStorage() {
   try {
     const s = localStorage.getItem(LS_KEY);
-    if (s) { data = JSON.parse(s); }
-    else {
-      /* migrate old flat format */
-      const old = localStorage.getItem(LS_KEY_OLD);
-      if (old) {
-        const o = JSON.parse(old);
-        if (o?.modules) {
-          data = {
-            notebooks: [{
-              id: "nb_odoo18", name: "Odoo 18", tech: "odoo18",
-              color: "#1F6B40", icon: "ti-settings",
-              tags: ["ERP", "Odoo", "Backend"],
-              description: "Sổ tay nghiên cứu các module chuẩn của Odoo 18.",
-              updatedAt: new Date().toISOString().slice(0, 10),
-              modules: o.modules
-            }]
-          };
-        }
+    if (s) {
+      const d = JSON.parse(s);
+      if (d?.notebooks?.length) return d.notebooks;
+    }
+    const old = localStorage.getItem(LS_KEY_OLD);
+    if (old) {
+      const o = JSON.parse(old);
+      if (o?.modules?.length) {
+        return [{
+          id: "nb_odoo18", name: "Odoo 18", tech: "odoo18",
+          color: "#1F6B40", icon: "ti-settings",
+          tags: ["ERP", "Odoo", "Backend"],
+          description: "Sổ tay nghiên cứu các module chuẩn của Odoo 18.",
+          updatedAt: new Date().toISOString().slice(0, 10),
+          modules: o.modules
+        }];
       }
     }
   } catch (_) {}
-  if (!data) data = SEED_DATA;
-
-  const modMatch = location.pathname.match(/^\/module\/([^/]+)/);
-  const nbMatch  = location.pathname.match(/^\/notebook\/([^/]+)/);
-
-  let activeNbId = null, activeModId = null, screen = "home";
-  if (nbMatch) {
-    activeNbId = nbMatch[1];
-    screen = "notebook";
-  } else if (modMatch) {
-    activeModId = modMatch[1];
-    const nb = data.notebooks?.find(nb => nb.modules?.some(m => m.id === activeModId));
-    if (nb) { activeNbId = nb.id; screen = "handbook"; }
-  }
-
-  return { data, activeNbId, activeModId, screen };
-})();
+  return null;
+}
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [data,        setData]        = useState(initState.data);
-  const [activeNbId,  setActiveNbId]  = useState(initState.activeNbId);
-  const [activeModId, setActiveModId] = useState(initState.activeModId);
-  const [screen,      setScreen]      = useState(initState.screen);
-  const [selection,   setSelection]   = useState({ type: "overview" });
-  const [saveState,   setSaveState]   = useState({ kind: "saved", at: nowHHMM() });
-  const [toast,       setToast]       = useState(null);
-  const skipDirtyRef = useRef(true);
 
-  /* ── theme ── */
+  const [data,       setData]       = useState({ notebooks: [] });
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [screen,     setScreen]     = useState("loading");
+  const [activeNbId, setActiveNbId] = useState(null);
+  const [activeModId,setActiveModId]= useState(null);
+  const [shareToken, setShareToken] = useState(null);
+  const [selection,  setSelection]  = useState({ type: "overview" });
+  const [saveState,  setSaveState]  = useState({ kind: "saved", at: nowHHMM() });
+  const [toast,      setToast]      = useState(null);
+
+  /* Refs to avoid stale-closure issues in async callbacks */
+  const dataRef           = useRef(data);
+  const isRemoteUpdateRef = useRef(false);   // true when setData comes from Firestore
+  const skipDirtyRef      = useRef(true);    // skip first render's dirty check
+  const saveTimerRef      = useRef(null);
+  const migrationDoneRef  = useRef(false);
+  const urlRef            = useRef(parseUrl());
+
+  useEffect(() => { dataRef.current = data; }, [data]);
+
+  /* ── Theme ── */
   useEffect(() => {
     document.documentElement.dataset.theme = tweaks.theme;
     document.documentElement.style.setProperty("--blue", tweaks.accent);
@@ -81,33 +91,142 @@ function App() {
     document.documentElement.dataset.density = tweaks.density;
   }, [tweaks.theme, tweaks.accent, tweaks.density]);
 
+  /* ── Keyboard save ── */
   useEffect(() => {
-    if (skipDirtyRef.current) { skipDirtyRef.current = false; return; }
-    setSaveState({ kind: "dirty" });
-  }, [data]);
-
-  useEffect(() => {
-    function onKey(e) {
+    const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); save(); }
-    }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  function save() {
-    setSaveState({ kind: "saving" });
-    setTimeout(() => {
-      try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (_) {}
-      setSaveState({ kind: "saved", at: nowHHMM() });
-      showToast("Đã lưu mọi thay đổi vào hệ thống!");
-    }, 400);
+  /* ── Auth + Firestore subscription ── */
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      /* Unauthenticated: share routes stay public, everything else → login */
+      if (urlRef.current.type === 'share') {
+        setShareToken(urlRef.current.token);
+        setScreen("share");
+      } else {
+        setScreen("login");
+      }
+      return;
+    }
+
+    /* User is logged in — subscribe to their notebooks */
+    const unsub = subscribeNotebooks(user.uid, async (notebooks) => {
+      if (!migrationDoneRef.current) {
+        migrationDoneRef.current = true;
+
+        /* One-time migration: if Firestore is empty, seed from localStorage */
+        if (notebooks.length === 0) {
+          const local = consumeLocalStorage();
+          const seed  = local || SEED_DATA.notebooks || [];
+          if (seed.length > 0) {
+            await Promise.all(seed.map(nb => upsertNotebook(user.uid, nb)));
+            /* onSnapshot will fire again with the migrated data */
+            return;
+          }
+        }
+
+        /* First real snapshot: resolve URL → screen state */
+        isRemoteUpdateRef.current = true;
+        setData({ notebooks });
+        resolveUrl(notebooks);
+        setDataLoaded(true);
+      } else {
+        /* Subsequent snapshots (cross-tab / cross-device updates) */
+        isRemoteUpdateRef.current = true;
+        setData({ notebooks });
+      }
+    });
+
+    return () => {
+      unsub();
+      migrationDoneRef.current = false;
+    };
+  }, [user, authLoading]);
+
+  /* ── Resolve URL after first data load ── */
+  function resolveUrl(notebooks) {
+    const url = urlRef.current;
+    if (url.type === 'share') {
+      setShareToken(url.token);
+      setScreen("share");
+    } else if (url.type === 'notebook') {
+      if (notebooks.find(nb => nb.id === url.nbId)) {
+        setActiveNbId(url.nbId);
+        setScreen("notebook");
+      } else {
+        setScreen("home");
+      }
+    } else if (url.type === 'module') {
+      const nb = notebooks.find(nb => nb.modules?.some(m => m.id === url.modId));
+      if (nb) {
+        setActiveNbId(nb.id);
+        setActiveModId(url.modId);
+        setScreen("handbook");
+      } else {
+        setScreen("home");
+      }
+    } else {
+      setScreen("home");
+    }
   }
+
+  /* ── Dirty detection + debounced auto-save ── */
+  useEffect(() => {
+    /* Skip updates that originated from Firestore (avoid write-loop) */
+    if (isRemoteUpdateRef.current) { isRemoteUpdateRef.current = false; return; }
+    if (skipDirtyRef.current)      { skipDirtyRef.current = false; return; }
+    if (!dataLoaded) return;
+
+    setSaveState({ kind: "dirty" });
+
+    if (!user) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(save, 2500);
+  }, [data]);
+
+  /* ── Save to Firestore ── */
+  async function save() {
+    if (!user) return;
+    clearTimeout(saveTimerRef.current);
+    setSaveState({ kind: "saving" });
+    try {
+      const notebooks = dataRef.current.notebooks;
+      await Promise.all(notebooks.map(nb => upsertNotebook(user.uid, nb)));
+      setSaveState({ kind: "saved", at: nowHHMM() });
+      showToast("Đã đồng bộ lên Firestore!");
+      /* Clear localStorage after first successful cloud save */
+      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(LS_KEY_OLD);
+    } catch (err) {
+      console.error("Firestore save failed:", err);
+      setSaveState({ kind: "dirty" });
+      showToast("Lưu thất bại — kiểm tra kết nối mạng");
+    }
+  }
+
+  /* ── setData wrapper that also removes deleted notebooks from Firestore ── */
+  function handleSetData(newData) {
+    const deletedIds = data.notebooks
+      .filter(nb => !newData.notebooks.some(n => n.id === nb.id))
+      .map(nb => nb.id);
+    setData(newData);
+    if (user && deletedIds.length > 0) {
+      deletedIds.forEach(id => removeNotebook(id).catch(console.error));
+    }
+  }
+
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(null), 2400);
   }
 
-  /* ── Derived ── */
+  /* ── Derived state ── */
   const activeNotebook = activeNbId
     ? data.notebooks?.find(nb => nb.id === activeNbId)
     : null;
@@ -151,26 +270,19 @@ function App() {
 
   function openNotebook(nbId) {
     history.pushState(null, "", "/notebook/" + nbId);
-    setActiveNbId(nbId);
-    setActiveModId(null);
-    setScreen("notebook");
+    setActiveNbId(nbId); setActiveModId(null); setScreen("notebook");
   }
   function openModule(modId) {
     history.pushState(null, "", "/module/" + modId);
-    setActiveModId(modId);
-    setScreen("handbook");
-    setSelection({ type: "overview" });
+    setActiveModId(modId); setScreen("handbook"); setSelection({ type: "overview" });
   }
   function backToNotebook() {
     history.pushState(null, "", "/notebook/" + activeNbId);
-    setActiveModId(null);
-    setScreen("notebook");
+    setActiveModId(null); setScreen("notebook");
   }
   function backToHome() {
     history.pushState(null, "", "/");
-    setActiveNbId(null);
-    setActiveModId(null);
-    setScreen("home");
+    setActiveNbId(null); setActiveModId(null); setScreen("home");
   }
 
   /* ── Feature CRUD ── */
@@ -210,10 +322,25 @@ function App() {
     </div>
   );
 
+  /* ── Auth / loading gates ── */
+  if (authLoading || screen === "loading") {
+    return (
+      <div className="app-loading">
+        <i className="ti ti-loader-2 spin app-loading-icon"></i>
+      </div>
+    );
+  }
+
+  if (screen === "login") return <LoginScreen />;
+
+  /* ── Main app ── */
   return (
     <div className="app-root">
 
-      {screen === "handbook" && activeMod ? (
+      {screen === "share" && shareToken ? (
+        <SharedView token={shareToken} />
+
+      ) : screen === "handbook" && activeMod ? (
         <div className="app-shell">
           <Sidebar
             mod={activeMod}
@@ -252,7 +379,7 @@ function App() {
         <div className="app-shell app-shell-list">
           <HomeScreen
             data={data}
-            setData={setData}
+            setData={handleSetData}
             onOpen={openNotebook}
           />
           <Savebar />
@@ -282,10 +409,11 @@ function App() {
                       options={["comfortable", "compact"]} />
         </TweakSection>
         <TweakSection label="Dữ liệu">
-          <TweakButton label="Reset về dữ liệu mẫu" onClick={() => {
-            if (!confirm("Reset toàn bộ về dữ liệu mẫu? Mất các thay đổi hiện tại.")) return;
-            localStorage.removeItem(LS_KEY);
-            location.reload();
+          <TweakButton label="Reset về dữ liệu mẫu" onClick={async () => {
+            if (!confirm("Reset toàn bộ về dữ liệu mẫu? Xoá tất cả sổ tay hiện tại.")) return;
+            if (!user) return;
+            await Promise.all(data.notebooks.map(nb => removeNotebook(nb.id)));
+            await Promise.all(SEED_DATA.notebooks.map(nb => upsertNotebook(user.uid, nb)));
           }} />
         </TweakSection>
       </TweaksPanel>
@@ -294,8 +422,7 @@ function App() {
 }
 
 function nowHHMM() {
-  const d = new Date();
-  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 function shade(hex, percent) {
   const h = hex.replace("#", "");
@@ -306,8 +433,8 @@ function shade(hex, percent) {
 function tint(hex, alpha) {
   const h = hex.replace("#", "");
   const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-  const mix = (c) => Math.round(c + (255 - c) * alpha);
-  return "#" + [mix(r),mix(g),mix(b)].map(n => n.toString(16).padStart(2,"0")).join("");
+  return "#" + [Math.round(r+(255-r)*alpha),Math.round(g+(255-g)*alpha),Math.round(b+(255-b)*alpha)]
+    .map(n => n.toString(16).padStart(2,"0")).join("");
 }
 
 export default App;
