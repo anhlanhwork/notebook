@@ -11,6 +11,16 @@ const STATUS_META = {
   done:     { label: "Hoàn thành",      color: "var(--success)", bg: "var(--success-bg)" }
 };
 
+const MODULE_ICONS = {
+  sale:     "ti-shopping-cart",
+  purchase: "ti-shopping-bag",
+  stock:    "ti-package",
+  account:  "ti-calculator",
+  crm:      "ti-users",
+  hr:       "ti-id-badge",
+  default:  "ti-cube"
+};
+
 export function SharedView({ token }) {
   const { user, loading: authLoading, signInGoogle } = useAuth();
   const [share,   setShare]   = useState(null);
@@ -95,9 +105,9 @@ export function SharedView({ token }) {
 /* ── Shared Notebook ── */
 function SharedNotebookPage({ notebook, isEditor }) {
   const [activeModId, setActiveModId] = useState(null);
-  const activeMod = activeModId
-    ? (notebook.modules || []).find(m => m.id === activeModId)
-    : null;
+  const modules = notebook.modules || [];
+  const activeMod = activeModId ? modules.find(m => m.id === activeModId) : null;
+  const totalFeatures = modules.reduce((s, m) => s + (m.features?.length || 0), 0);
 
   if (activeMod) {
     return (
@@ -111,40 +121,34 @@ function SharedNotebookPage({ notebook, isEditor }) {
   }
 
   return (
-    <div className="shared-nb">
-      <div className="shared-nb-header">
-        <div
-          className="shared-nb-art"
-          style={{ background: `linear-gradient(135deg, ${notebook.color} 0%, ${notebook.color}bb 100%)` }}
-        >
-          <i className={`ti ${notebook.icon || "ti-clipboard-list"}`}></i>
-        </div>
-        <div className="shared-nb-info">
-          <div className="eyebrow">Sổ tay nội bộ</div>
-          <h1>{notebook.name}</h1>
-          {notebook.description && <p>{notebook.description}</p>}
-          <div className="shared-nb-tags">
-            {(notebook.tags || []).map(t => <span key={t} className="home-tag">{t}</span>)}
-          </div>
-          <div className="shared-nb-meta">
-            <span><b>{(notebook.modules || []).length}</b> module</span>
-            <span className="home-stats-dot">·</span>
-            <span>Cập nhật {notebook.updatedAt}</span>
+    <div className="ml-screen">
+      <div className="ml-hero" style={{
+        background: `radial-gradient(ellipse at 0% 60%, ${notebook.color}28 0%, transparent 55%), linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%)`
+      }}>
+        <div className="ml-hero-inner">
+          <div className="ml-header-row">
+            <div className="ml-header-hd">
+              <div className="ml-header-icon" style={{ background: notebook.color }}>
+                <i className={`ti ${notebook.icon || "ti-clipboard-list"}`}></i>
+              </div>
+              <div>
+                <div className="eyebrow">Sổ tay nội bộ</div>
+                <h1 className="ml-title">{notebook.name}</h1>
+                <p className="ml-sub">
+                  {modules.length} module · {totalFeatures} tính năng đã ghi chép
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="shared-nb-body">
-        <h2 className="shared-section-title">Danh sách module</h2>
-        {(notebook.modules || []).length === 0
+      <div className="ml-grid">
+        {modules.length === 0
           ? <div className="shared-empty">Sổ tay chưa có module nào.</div>
-          : (
-            <div className="shared-module-grid">
-              {notebook.modules.map(m => (
-                <SharedModuleCard key={m.id} module={m} onClick={() => setActiveModId(m.id)} />
-              ))}
-            </div>
-          )
+          : modules.map(m => (
+            <SharedModuleCard key={m.id} module={m} onClick={() => setActiveModId(m.id)} />
+          ))
         }
       </div>
     </div>
@@ -152,19 +156,58 @@ function SharedNotebookPage({ notebook, isEditor }) {
 }
 
 function SharedModuleCard({ module: m, onClick }) {
+  const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
   const st = STATUS_META[m.status] || STATUS_META.pending;
+  const featCount = m.features?.length || 0;
+  const flowCount = (m.mainFlows?.length || 0) +
+                    (m.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
+
   return (
-    <div className="shared-module-card" onClick={onClick}>
-      <div className="shared-module-card-bar" style={{ background: m.color }}></div>
-      <div className="shared-module-card-body">
-        <div className="shared-module-card-title">{m.name}</div>
-        <code className="ml-card-tech">{m.tech}</code>
-        <p className="shared-module-card-purpose">
-          {m.overview?.purpose || <span style={{ color: "var(--text3)" }}>Chưa có mô tả</span>}
-        </p>
-        <div className="shared-module-card-foot">
-          <span className="ml-card-pill" style={{ background: st.bg, color: st.color }}>{st.label}</span>
-          <span className="shared-module-card-count">{m.features?.length || 0} tính năng</span>
+    <div className="ml-card" onClick={onClick}>
+      <div
+        className="ml-card-art"
+        style={{ background: `linear-gradient(135deg, ${m.color} 0%, ${m.color}cc 100%)` }}
+      >
+        <i className={"ti " + icon}></i>
+        <div className="ml-card-art-deco"></div>
+        {m.overview?.category && m.overview.category !== "—" && (
+          <span className="ml-card-art-cat">{m.overview.category.toUpperCase()}</span>
+        )}
+        <span className="ml-card-art-status" style={{ background: st.bg, color: st.color }}>
+          {st.label}
+        </span>
+      </div>
+
+      <div className="ml-card-body">
+        <div className="ml-card-head">
+          <div className="ml-card-name-wrap">
+            <div className="ml-card-name">{m.name}</div>
+            <code className="ml-card-tech">{m.tech}</code>
+          </div>
+        </div>
+
+        <div className="ml-card-purpose">
+          {m.overview?.purpose || <span className="ml-card-empty">Chưa có mô tả</span>}
+        </div>
+
+        <div className="ml-card-stats">
+          <div className="ml-card-stat">
+            <div className="ml-stat-label"><i className="ti ti-puzzle"></i> Tính năng</div>
+            <div className="ml-stat-val"><b>{featCount}</b></div>
+          </div>
+          <div className="ml-card-stat">
+            <div className="ml-stat-label"><i className="ti ti-git-branch"></i> Luồng</div>
+            <div className="ml-stat-val"><b>{flowCount}</b></div>
+          </div>
+          <div className="ml-card-stat">
+            <div className="ml-stat-label"><i className="ti ti-calendar"></i> Cập nhật</div>
+            <div className="ml-stat-val">{m.updatedAt}</div>
+          </div>
+        </div>
+
+        <div className="ml-card-cta">
+          <span>Xem module</span>
+          <i className="ti ti-arrow-right"></i>
         </div>
       </div>
     </div>
@@ -177,13 +220,18 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
   const st = STATUS_META[mod.status] || STATUS_META.pending;
 
   return (
-    <div className="shared-module-detail">
+    <div className="ml-screen">
       {onBack && (
-        <button className="shared-mod-back" onClick={onBack}>
-          <i className="ti ti-arrow-left"></i>
-          {notebookName ? `Sổ tay: ${notebookName}` : "Quay lại"}
-        </button>
+        <div className="ml-hero" style={{ background: `radial-gradient(ellipse at 0% 60%, ${mod.color}28 0%, transparent 55%), linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%)` }}>
+          <div className="ml-hero-inner">
+            <button className="ml-back" onClick={onBack}>
+              <i className="ti ti-arrow-left"></i>
+              {notebookName ? `Sổ tay: ${notebookName}` : "Quay lại"}
+            </button>
+          </div>
+        </div>
       )}
+      <div className="shared-module-detail">
 
       <div className="shared-module-detail-title">
         <div className="shared-module-detail-name-row">
@@ -310,6 +358,7 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
       {(mod.features || []).length === 0 && (
         <div className="shared-empty">Module chưa có tính năng nào được ghi chép.</div>
       )}
+    </div>
     </div>
   );
 }
