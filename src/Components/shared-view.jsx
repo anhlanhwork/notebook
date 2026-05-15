@@ -82,15 +82,22 @@ export function SharedView({ token }) {
   return (
     <div className="shared-page">
       <div className="shared-topbar">
-        <a href="/" className="shared-back">
-          <i className="ti ti-arrow-left"></i> Trang chủ
-        </a>
+        <div className="shared-topbar-brand">
+          <i className="ti ti-clipboard-list"></i>
+          <span>Sổ tay nội bộ</span>
+        </div>
         <div className="shared-topbar-right">
-          <span className="shared-by">Chia sẻ bởi {share.ownerName || share.ownerEmail}</span>
+          <span className="shared-by">
+            <i className="ti ti-share"></i>
+            Chia sẻ bởi <b>{share.ownerName || share.ownerEmail}</b>
+          </span>
           <span className={`shared-role-badge shared-role-badge--${share.role}`}>
             <i className={`ti ${share.role === "viewer" ? "ti-eye" : "ti-pencil"}`}></i>
             {share.role === "viewer" ? "Người xem" : "Người chỉnh sửa"}
           </span>
+          <a href="/" className="shared-back">
+            <i className="ti ti-home"></i> Trang chủ
+          </a>
         </div>
       </div>
 
@@ -289,7 +296,7 @@ function SharedERDView({ models }) {
         <svg className="erd-svg" width={svgW} height={svgH}>
           <defs>
             <pattern id="erd-dots-ro" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="12" cy="12" r="0.75" fill="#D1D5DB"/>
+              <circle cx="12" cy="12" r="0.75" fill="rgba(0,0,0,0.10)"/>
             </pattern>
             {Object.entries(ERD_LINE).map(([k, col]) => (
               <marker key={k} id={`earr-ro-${k}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -409,13 +416,13 @@ function SharedBPMNView({ flows = [] }) {
                   <path d="M0,1 L9,5 L0,9 Z" fill="#9CA3AF"/>
                 </marker>
                 <pattern id="bpmn-dots-ro" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <circle cx="10" cy="10" r=".9" fill="#D1D5DB"/>
+                  <circle cx="10" cy="10" r=".9" fill="rgba(0,0,0,0.10)"/>
                 </pattern>
                 <filter id="bpmn-sh-ro" x="-10%" y="-15%" width="120%" height="140%">
                   <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000" floodOpacity=".07"/>
                 </filter>
               </defs>
-              <rect width={W} height={H} fill="#F9FAFB"/>
+              <rect width={W} height={H} fill="#f7f7f6"/>
               <rect width={W} height={H} fill="url(#bpmn-dots-ro)"/>
 
               {edges.map(e => {
