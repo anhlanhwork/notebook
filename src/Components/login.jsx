@@ -2,6 +2,8 @@ import React from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 const ERROR_MSG = {
+  'auth/email-not-allowed':
+    'Tài khoản này không có quyền truy cập. Chỉ email @anhlanh.work mới được phép đăng nhập.',
   'auth/unauthorized-domain':
     'Domain chưa được cấp quyền trong Firebase. Vào Firebase Console → Authentication → Settings → Authorized domains và thêm domain Vercel của bạn.',
   'auth/popup-blocked':

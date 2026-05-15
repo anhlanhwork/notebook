@@ -2,6 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../../firebase.js';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 
+/* Chỉ email thuộc domain này mới được đăng nhập */
+const ALLOWED_DOMAIN = 'anhlanh.work';
+
+function isAllowed(email) {
+  return typeof email === 'string' && email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN);
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -9,13 +16,23 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, u => setUser(u || null));
+    return onAuthStateChanged(auth, async u => {
+      if (u && !isAllowed(u.email)) {
+        /* Tài khoản không trong whitelist — sign out ngay */
+        await signOut(auth);
+        setUser(null);
+        setAuthError('auth/email-not-allowed');
+        return;
+      }
+      setUser(u || null);
+    });
   }, []);
 
   async function signInGoogle() {
     setAuthError(null);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
+      /* Việc kiểm tra email xảy ra trong onAuthStateChanged ở trên */
     } catch (e) {
       if (e.code === 'auth/popup-closed-by-user') return;
       console.error('Auth error:', e.code, e.message);
