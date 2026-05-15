@@ -323,7 +323,7 @@ function App() {
   );
 
   /* ── Auth / loading gates ── */
-  if (authLoading || screen === "loading") {
+  if (authLoading || screen === "loading" || (user && !dataLoaded)) {
     return (
       <div className="app-loading">
         <i className="ti ti-loader-2 spin app-loading-icon"></i>
@@ -331,7 +331,7 @@ function App() {
     );
   }
 
-  if (screen === "login") return <LoginScreen />;
+  if (!user) return <LoginScreen />;
 
   /* ── Main app ── */
   return (
