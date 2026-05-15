@@ -263,7 +263,7 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
 
                 {openFeat === f.id && (
                   <div className="shared-feature-body">
-                    {f.desc && <p className="shared-feature-desc">{f.desc}</p>}
+                    {f.desc && <div className="shared-feature-desc md" dangerouslySetInnerHTML={{ __html: f.desc }} />}
 
                     {(f.flows || []).length > 0 && (
                       <div className="shared-feature-section">
@@ -294,7 +294,7 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
                         {f.detailBlocks.map((block, i) => (
                           <div key={i} className="shared-block">
                             {block.title   && <div className="shared-block-title">{block.title}</div>}
-                            {block.content && <p className="shared-block-content">{block.content}</p>}
+                            {block.content && <div className="shared-block-content md" dangerouslySetInnerHTML={{ __html: block.content }} />}
                           </div>
                         ))}
                       </div>

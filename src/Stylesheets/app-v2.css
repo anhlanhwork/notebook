@@ -2481,7 +2481,7 @@
    SHARED VIEW — /share/{token} page
    ═══════════════════════════════════════════════════════════ */
 
-.shared-page { min-height: 100vh; background: var(--bg3); }
+.shared-page { height: 100vh; overflow-y: auto; background: var(--bg3); }
 
 /* Top bar */
 .shared-topbar {
