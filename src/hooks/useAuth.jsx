@@ -3,7 +3,7 @@ import { auth } from '../../firebase.js';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 
 /* Chỉ email này mới được đăng nhập */
-const ALLOWED_EMAIL = 'anhlanh.wwork@gmail.com';
+const ALLOWED_EMAIL = 'anhlanh.work@gmail.com';
 
 function isAllowed(email) {
   return typeof email === 'string' && email.toLowerCase() === ALLOWED_EMAIL;
