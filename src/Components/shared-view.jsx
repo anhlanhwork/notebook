@@ -245,6 +245,7 @@ function erdCH(c) { return ERD_HEAD_H + ERD_COL_H + (c.fields?.length || 0) * ER
 
 function SharedERDView({ models }) {
   const cards = models?.cards || [];
+  const [expanded, setExpanded] = useState(false);
   const wrapRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 900, h: 480 });
 
@@ -284,13 +285,17 @@ function SharedERDView({ models }) {
   });
 
   return (
-    <div className="erd-wrap erd-wrap--readonly">
+    <div className={`erd-wrap erd-wrap--readonly${expanded ? " erd-wrap--expanded" : ""}`}>
       <div className="erd-toolbar">
         <div className="erd-legend">
           <span className="erd-leg-chip chip-m2o">M2o</span> Many2one
           <span className="erd-leg-chip chip-o2m">O2m</span> One2many
           <span className="erd-leg-chip chip-m2m">M2m</span> Many2many
         </div>
+        <button className="shared-canvas-toggle" onClick={() => setExpanded(e => !e)}>
+          <i className={`ti ${expanded ? "ti-arrows-minimize" : "ti-arrows-maximize"}`}></i>
+          {expanded ? "Thu gọn" : "Mở rộng"}
+        </button>
       </div>
       <div className="erd-canvas" ref={wrapRef}>
         <svg className="erd-svg" width={svgW} height={svgH}>
@@ -372,6 +377,7 @@ function bpmnEdgePt(box, tx, ty) {
 
 function SharedBPMNView({ flows = [] }) {
   const [activeId, setActiveId] = useState(flows[0]?.id || null);
+  const [expanded, setExpanded] = useState(false);
   const wrapRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 700, h: 360 });
 
@@ -402,11 +408,24 @@ function SharedBPMNView({ flows = [] }) {
               <i className="ti ti-git-branch"></i>{f.name}
             </button>
           ))}
+          <button className="shared-canvas-toggle" onClick={() => setExpanded(e => !e)}>
+            <i className={`ti ${expanded ? "ti-arrows-minimize" : "ti-arrows-maximize"}`}></i>
+            {expanded ? "Thu gọn" : "Mở rộng"}
+          </button>
         </div>
       )}
-      {flows.length === 1 && <div className="shared-bpmn-title"><i className="ti ti-git-branch"></i>{flows[0].name}</div>}
+      {flows.length === 1 && (
+        <div className="shared-bpmn-title">
+          <i className="ti ti-git-branch"></i>
+          <span style={{ flex: 1 }}>{flows[0].name}</span>
+          <button className="shared-canvas-toggle" onClick={() => setExpanded(e => !e)}>
+            <i className={`ti ${expanded ? "ti-arrows-minimize" : "ti-arrows-maximize"}`}></i>
+            {expanded ? "Thu gọn" : "Mở rộng"}
+          </button>
+        </div>
+      )}
 
-      <div className="shared-bpmn-canvas" ref={wrapRef}>
+      <div className={`shared-bpmn-canvas${expanded ? " shared-bpmn-canvas--expanded" : ""}`} ref={wrapRef}>
         {!nodes.length
           ? <div className="shared-empty">Luồng chưa có bước nào.</div>
           : (
@@ -494,8 +513,19 @@ function SharedBPMNView({ flows = [] }) {
 
 /* ── Shared Module detail ── */
 function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
-  const [openFeat, setOpenFeat] = useState(null);
-  const [featTabs, setFeatTabs] = useState({});
+  const [openFeats, setOpenFeats] = useState(new Set());
+  const [featTabs,  setFeatTabs]  = useState({});
+
+  function toggleFeat(id) {
+    setOpenFeats(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function expandAll()   { setOpenFeats(new Set((mod.features || []).map(f => f.id))); }
+  function collapseAll() { setOpenFeats(new Set()); }
+
   function getFeatTab(fid) { return featTabs[fid] || "models"; }
   function setFeatTab(fid, tab) { setFeatTabs(prev => ({ ...prev, [fid]: tab })); }
   const st = STATUS_META[mod.status] || STATUS_META.pending;
@@ -570,9 +600,20 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
       {/* Features */}
       {(mod.features || []).length > 0 && (
         <div className="shared-section">
-          <h2 className="shared-section-title">Tính năng ({mod.features.length})</h2>
+          <div className="shared-section-head">
+            <h2 className="shared-section-title">Tính năng ({mod.features.length})</h2>
+            <div className="shared-section-actions">
+              <button className="shared-ctrl-btn" onClick={expandAll}>
+                <i className="ti ti-chevrons-down"></i> Mở tất cả
+              </button>
+              <button className="shared-ctrl-btn" onClick={collapseAll}>
+                <i className="ti ti-chevrons-up"></i> Đóng tất cả
+              </button>
+            </div>
+          </div>
           <div className="shared-features">
             {mod.features.map(f => {
+              const isOpen      = openFeats.has(f.id);
               const modelCount  = f.models?.cards?.length  || 0;
               const flowCount   = f.flows?.length           || 0;
               const detailCount = f.detailBlocks?.length    || 0;
@@ -584,10 +625,10 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
               const curTab = getFeatTab(f.id) || tabs[0]?.key;
 
               return (
-                <div key={f.id} className={`shared-feature${openFeat === f.id ? " open" : ""}`}>
+                <div key={f.id} className={`shared-feature${isOpen ? " open" : ""}`}>
                   <button
                     className="shared-feature-head"
-                    onClick={() => setOpenFeat(openFeat === f.id ? null : f.id)}
+                    onClick={() => toggleFeat(f.id)}
                   >
                     <span className="shared-feature-name">{f.name}</span>
                     <span className="shared-feature-counts">
@@ -595,10 +636,10 @@ function SharedModulePage({ mod, isEditor, onBack, notebookName }) {
                       {flowCount   > 0 && <span><i className="ti ti-git-branch"></i> {flowCount} luồng</span>}
                       {detailCount > 0 && <span><i className="ti ti-list-details"></i> {detailCount} chi tiết</span>}
                     </span>
-                    <i className={`ti ${openFeat === f.id ? "ti-chevron-up" : "ti-chevron-down"} shared-feature-chevron`}></i>
+                    <i className={`ti ${isOpen ? "ti-chevron-up" : "ti-chevron-down"} shared-feature-chevron`}></i>
                   </button>
 
-                  {openFeat === f.id && (
+                  {isOpen && (
                     <div className="shared-feature-body">
                       {f.desc && <div className="shared-feature-desc md" dangerouslySetInnerHTML={{ __html: f.desc }} />}
 
