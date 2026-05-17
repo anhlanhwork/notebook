@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BPMNFlow } from './bpmn.jsx';
 import { ERDModels } from './erd.jsx';
+import { showConfirm, showPrompt } from './dialog.jsx';
 
 export const FEATURE_TABS = [
   { key: "models",       label: "Models",             icon: "ti-table" },
@@ -37,7 +38,7 @@ const BLOCK_ICONS = [
 const TEXT_COLORS = ["#111827","#DC2626","#D97706","#16A34A","#2563EB","#7C3AED","#9CA3AF"];
 const HL_COLORS   = ["transparent","#FEF08A","#BBF7D0","#BFDBFE","#F5D0FE","#FECAca"];
 
-function DetailBlock({ block, index, total, onUpdate, onDelete, onMoveUp, onMoveDown }) {
+function DetailBlock({ block, index, total, onUpdate, onDelete, onMoveUp, onMoveDown, collapsed, onToggleCollapse }) {
   const [iconPick, setIconPick] = useState(false);
   const [colorPop, setColorPop] = useState(null); // 'text' | 'hl' | null
   const edRef = useRef(null);
@@ -101,10 +102,14 @@ function DetailBlock({ block, index, total, onUpdate, onDelete, onMoveUp, onMove
           <button onClick={onMoveUp}   disabled={index === 0}         title="Lên"><i className="ti ti-arrow-up"/></button>
           <button onClick={onMoveDown} disabled={index === total - 1} title="Xuống"><i className="ti ti-arrow-down"/></button>
           <button onClick={onDelete} className="dblk-del-btn" title="Xóa"><i className="ti ti-trash"/></button>
+          <button onClick={onToggleCollapse} className="dblk-collapse-btn" title={collapsed ? "Mở rộng" : "Thu gọn"}>
+            <i className={"ti " + (collapsed ? "ti-chevron-down" : "ti-chevron-up")}/>
+          </button>
         </div>
       </div>
 
-      {/* ── Formatting toolbar ── */}
+      {/* ── Formatting toolbar + editor (hidden when collapsed) ── */}
+      {!collapsed && (<>
       <div className="dblk-toolbar">
         {/* Text style */}
         <button className="dblk-tb-btn" onMouseDown={e=>{e.preventDefault();fmt("bold")}}        title="Đậm (Ctrl+B)"><strong>B</strong></button>
@@ -174,8 +179,6 @@ function DetailBlock({ block, index, total, onUpdate, onDelete, onMoveUp, onMove
           <i className="ti ti-code"/>
         </button>
       </div>
-
-      {/* ── Rich text area ── */}
       <div ref={edRef}
            className="dblk-editor"
            contentEditable
@@ -183,18 +186,27 @@ function DetailBlock({ block, index, total, onUpdate, onDelete, onMoveUp, onMove
            onInput={() => onUpdate({ content: edRef.current.innerHTML })}
            onKeyDown={onKeyDown}
            data-placeholder="Nhập nội dung..."/>
+      </>)}
     </div>
   );
 }
 
 function DetailBlocksPane({ blocks = [], onChange }) {
+  const [collapsedIds, setCollapsedIds] = useState(new Set());
+
+  function toggleCollapse(id) {
+    setCollapsedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }
+  function expandAll()   { setCollapsedIds(new Set()); }
+  function collapseAll() { setCollapsedIds(new Set(blocks.map(b => b.id))); }
+
   function addBlock() {
     const id = "db_" + Math.random().toString(36).slice(2, 6);
     onChange([...blocks, { id, icon: "ti-target", title: "Block mới", content: "" }]);
   }
   function updBlock(id, patch) { onChange(blocks.map(b => b.id === id ? { ...b, ...patch } : b)); }
-  function delBlock(id) {
-    if (!confirm("Xóa block này?")) return;
+  async function delBlock(id) {
+    if (!await showConfirm("Xóa block này?")) return;
     onChange(blocks.filter(b => b.id !== id));
   }
   function moveBlock(id, dir) {
@@ -206,6 +218,16 @@ function DetailBlocksPane({ blocks = [], onChange }) {
 
   return (
     <div className="dblocks-pane">
+      {blocks.length > 1 && (
+        <div className="dblocks-ctrl-bar">
+          <button className="dblocks-ctrl-btn" onClick={expandAll}>
+            <i className="ti ti-chevrons-down"/> Mở tất cả
+          </button>
+          <button className="dblocks-ctrl-btn" onClick={collapseAll}>
+            <i className="ti ti-chevrons-up"/> Đóng tất cả
+          </button>
+        </div>
+      )}
       {blocks.length === 0 && (
         <div className="dblocks-empty">
           <i className="ti ti-list-details"/>
@@ -214,6 +236,8 @@ function DetailBlocksPane({ blocks = [], onChange }) {
       )}
       {blocks.map((b, i) => (
         <DetailBlock key={b.id} block={b} index={i} total={blocks.length}
+          collapsed={collapsedIds.has(b.id)}
+          onToggleCollapse={() => toggleCollapse(b.id)}
           onUpdate={p => updBlock(b.id, p)}
           onDelete={() => delBlock(b.id)}
           onMoveUp={() => moveBlock(b.id, -1)}
@@ -236,7 +260,7 @@ const INT_ICON_PRESETS = [
 ];
 const INT_COLOR_PRESETS = ["#5BAA50","#7C3AED","#2563EB","#D97706","#DC2626","#0891B2","#374151","#D85A30"];
 
-function IntCard({ item, onUpdate, onDelete, onMoveUp, onMoveDown, index, total }) {
+function IntCard({ item, onUpdate, onDelete, onMoveUp, onMoveDown, index, total, collapsed, onToggleCollapse }) {
   const edRef       = useRef(null);
   const [iconPop,  setIconPop]  = useState(false);
   const [colorPop, setColorPop] = useState(false);
@@ -309,25 +333,37 @@ function IntCard({ item, onUpdate, onDelete, onMoveUp, onMoveDown, index, total 
           <button onClick={onMoveUp}   disabled={index === 0}         title="Lên"><i className="ti ti-arrow-up"/></button>
           <button onClick={onMoveDown} disabled={index === total - 1} title="Xuống"><i className="ti ti-arrow-down"/></button>
           <button onClick={onDelete} className="intc-del-btn" title="Xóa"><i className="ti ti-trash"/></button>
+          <button onClick={onToggleCollapse} className="dblk-collapse-btn" title={collapsed ? "Mở rộng" : "Thu gọn"}>
+            <i className={"ti " + (collapsed ? "ti-chevron-down" : "ti-chevron-up")}/>
+          </button>
         </div>
       </div>
 
       {/* Content area */}
-      <div ref={edRef}
-           className="intc-editor"
-           contentEditable
-           suppressContentEditableWarning
-           onInput={() => onUpdate({ content: edRef.current.innerHTML })}
-           onKeyDown={e => {
-             if (e.key === "Tab") { e.preventDefault(); document.execCommand(e.shiftKey ? "outdent" : "indent"); }
-           }}
-           data-placeholder="Mô tả chi tiết tích hợp..."/>
+      {!collapsed && (
+        <div ref={edRef}
+             className="intc-editor"
+             contentEditable
+             suppressContentEditableWarning
+             onInput={() => onUpdate({ content: edRef.current.innerHTML })}
+             onKeyDown={e => {
+               if (e.key === "Tab") { e.preventDefault(); document.execCommand(e.shiftKey ? "outdent" : "indent"); }
+             }}
+             data-placeholder="Mô tả chi tiết tích hợp..."/>
+      )}
     </div>
   );
 }
 
 function IntegrationsPane({ integrations = [], onChange }) {
-  const [filter, setFilter] = useState(null);
+  const [filter,       setFilter]       = useState(null);
+  const [collapsedIds, setCollapsedIds] = useState(new Set());
+
+  function toggleCollapse(id) {
+    setCollapsedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }
+  function expandAll()   { setCollapsedIds(new Set()); }
+  function collapseAll() { setCollapsedIds(new Set(integrations.map(x => x.id))); }
 
   const counts = { in: 0, out: 0, bidi: 0 };
   integrations.forEach(x => { if (counts[x.direction] !== undefined) counts[x.direction]++; });
@@ -337,7 +373,7 @@ function IntegrationsPane({ integrations = [], onChange }) {
     onChange([...integrations, { id, module: "module.name", icon: "ti-plug", color: "#374151", direction: "in", content: "" }]);
   }
   function upd(id, patch) { onChange(integrations.map(x => x.id === id ? { ...x, ...patch } : x)); }
-  function del(id) { if (!confirm("Xóa tích hợp này?")) return; onChange(integrations.filter(x => x.id !== id)); }
+  async function del(id) { if (!await showConfirm("Xóa tích hợp này?")) return; onChange(integrations.filter(x => x.id !== id)); }
   function move(id, dir) {
     const i = integrations.findIndex(x => x.id === id);
     const a = [...integrations]; const j = i + dir;
@@ -368,6 +404,12 @@ function IntegrationsPane({ integrations = [], onChange }) {
             </button>
           ))}
         </div>
+        {integrations.length > 1 && (
+          <div className="dblocks-ctrl-bar">
+            <button className="dblocks-ctrl-btn" onClick={expandAll}><i className="ti ti-chevrons-down"/> Mở tất cả</button>
+            <button className="dblocks-ctrl-btn" onClick={collapseAll}><i className="ti ti-chevrons-up"/> Đóng tất cả</button>
+          </div>
+        )}
       </div>
 
       {/* Cards */}
@@ -381,6 +423,8 @@ function IntegrationsPane({ integrations = [], onChange }) {
         const realIdx = integrations.findIndex(x => x.id === item.id);
         return (
           <IntCard key={item.id} item={item} index={realIdx} total={integrations.length}
+            collapsed={collapsedIds.has(item.id)}
+            onToggleCollapse={() => toggleCollapse(item.id)}
             onUpdate={p => upd(item.id, p)}
             onDelete={() => del(item.id)}
             onMoveUp={() => move(item.id, -1)}
@@ -642,7 +686,7 @@ function CasesPane({ cases = [], onChange }) {
     onChange([...cases, { id, title: "Case mới", status: "new", chatLink: "", description: "", images: [], cause: "", resolution: "" }]);
   }
   function upd(id, patch) { onChange(cases.map(c => c.id === id ? { ...c, ...patch } : c)); }
-  function del(id) { if (!confirm("Xóa case này?")) return; onChange(cases.filter(c => c.id !== id)); }
+  async function del(id) { if (!await showConfirm("Xóa case này?")) return; onChange(cases.filter(c => c.id !== id)); }
   function move(id, dir) {
     const i = cases.findIndex(c => c.id === id);
     const a = [...cases]; const j = i + dir;
@@ -738,17 +782,17 @@ function MultiFlowEditor({ flows = [], onChange, accent, emptyHint }) {
 
   const active = flows.find(f => f.id === activeId) || flows[0];
 
-  function addFlow() {
-    const name = prompt("Tên luồng mới:", "Luồng " + (flows.length + 1));
+  async function addFlow() {
+    const name = await showPrompt("Tên luồng mới:", "Luồng " + (flows.length + 1));
     if (!name) return;
     const id = "fl_" + Math.random().toString(36).slice(2, 7);
     onChange([...flows, { id, name, nodes: [], edges: [] }]);
     setActiveId(id);
   }
 
-  function renameFlow(f, e) {
+  async function renameFlow(f, e) {
     e.stopPropagation();
-    const name = prompt("Đổi tên luồng:", f.name);
+    const name = await showPrompt("Đổi tên luồng:", f.name);
     if (!name) return;
     onChange(flows.map(fl => fl.id === f.id ? { ...fl, name } : fl));
   }
@@ -766,9 +810,9 @@ function MultiFlowEditor({ flows = [], onChange, accent, emptyHint }) {
     setActiveId(copy.id);
   }
 
-  function deleteFlow(f, e) {
+  async function deleteFlow(f, e) {
     e.stopPropagation();
-    if (!confirm(`Xóa luồng "${f.name}"?`)) return;
+    if (!await showConfirm(`Xóa luồng "${f.name}"?`)) return;
     const next = flows.filter(fl => fl.id !== f.id);
     onChange(next);
     setActiveId(next[0]?.id || null);
@@ -968,8 +1012,17 @@ function tabCount(feature, key) {
   return 0;
 }
 
+const FEAT_TAB_KEYS = new Set(FEATURE_TABS.map(t => t.key));
+
 function FeaturePane({ feature, setFeature, accent }) {
-  const [tab, setTab] = useState("models");
+  const [tab, setTabState] = useState(() => {
+    const h = location.hash.slice(1);
+    return FEAT_TAB_KEYS.has(h) ? h : 'models';
+  });
+  function setTab(t) {
+    setTabState(t);
+    history.replaceState(null, '', location.pathname + '#' + t);
+  }
   return (
     <div className="feat-pane">
       <div className="feat-tabs">
@@ -997,20 +1050,161 @@ function FeaturePane({ feature, setFeature, accent }) {
 }
 
 /* ════════════════════════════════════════════════════════════
+   CHANGELOG PANE  — SRS Change Request table style
+   ════════════════════════════════════════════════════════════ */
+const CL_TYPES = {
+  feature:     { label: 'Tính năng mới', color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'   },
+  improvement: { label: 'Cải tiến',      color: '#378ADD', bg: 'rgba(55,138,221,0.12)'  },
+  fix:         { label: 'Sửa lỗi',       color: '#EF4444', bg: 'rgba(239,68,68,0.12)'   },
+  config:      { label: 'Cấu hình',      color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  },
+  note:        { label: 'Ghi chú',       color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
+};
+
+const CL_STATUS = {
+  draft:    { label: 'Soạn thảo', color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
+  review:   { label: 'Đang review', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+  approved: { label: 'Đã duyệt',  color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'  },
+};
+
+function makeCLEntry(changelog) {
+  const now = new Date();
+  const last = [...(changelog || [])].sort((a, b) => b.date.localeCompare(a.date))[0];
+  const lastVer = last?.version ? parseFloat(last.version) : 0;
+  const nextVer = isNaN(lastVer) ? '' : (lastVer + 0.1).toFixed(1);
+  return {
+    id:        'cl_' + Math.random().toString(36).slice(2, 8),
+    date:      now.toISOString().slice(0, 10),
+    version:   nextVer,
+    type:      'feature',
+    status:    'draft',
+    author:    '',
+    featureId: '',
+    title:     '',
+    desc:      '',
+  };
+}
+
+function ChangelogRow({ entry, idx, features, onUpdate, onRemove }) {
+  const tm = CL_TYPES[entry.type]    || CL_TYPES.note;
+  const sm = CL_STATUS[entry.status] || CL_STATUS.draft;
+
+  return (
+    <div className="cl-card">
+      <div className="cl-card-head">
+        <div className="cl-card-head-left">
+          <span className="cl-card-idx">{idx + 1}</span>
+          <input className="cl-card-ver" value={entry.version}
+            onChange={e => onUpdate('version', e.target.value)} placeholder="v1.0" />
+          <input className="cl-card-date" type="date" value={entry.date}
+            onChange={e => onUpdate('date', e.target.value)} />
+        </div>
+        <div className="cl-card-head-right">
+          <select className="cl-badge-sel" value={entry.type}
+            style={{ color: tm.color, background: tm.bg }}
+            onChange={e => onUpdate('type', e.target.value)}>
+            {Object.entries(CL_TYPES).map(([k, m]) => (
+              <option key={k} value={k}>{m.label}</option>
+            ))}
+          </select>
+          <select className="cl-badge-sel" value={entry.status}
+            style={{ color: sm.color, background: sm.bg }}
+            onChange={e => onUpdate('status', e.target.value)}>
+            {Object.entries(CL_STATUS).map(([k, m]) => (
+              <option key={k} value={k}>{m.label}</option>
+            ))}
+          </select>
+          <button className="cl-card-del" onClick={onRemove} title="Xóa">
+            <i className="ti ti-x"/>
+          </button>
+        </div>
+      </div>
+      <div className="cl-card-body">
+        <input className="cl-card-title-input" value={entry.title}
+          onChange={e => onUpdate('title', e.target.value)} placeholder="Nội dung thay đổi..." />
+        <input className="cl-card-desc-input" value={entry.desc}
+          onChange={e => onUpdate('desc', e.target.value)} placeholder="Chi tiết (tùy chọn)" />
+        <div className="cl-card-meta">
+          <label className="cl-meta-item">
+            <span className="cl-meta-lbl"><i className="ti ti-user"/> Người thực hiện</span>
+            <input className="cl-meta-input" value={entry.author}
+              onChange={e => onUpdate('author', e.target.value)} placeholder="Tên..." />
+          </label>
+          <label className="cl-meta-item">
+            <span className="cl-meta-lbl"><i className="ti ti-puzzle"/> Tính năng liên quan</span>
+            <select className="cl-meta-input" value={entry.featureId || ''}
+              onChange={e => onUpdate('featureId', e.target.value)}>
+              <option value="">— Không chọn —</option>
+              {(features || []).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangelogPane({ mod, setMod }) {
+  const entries  = [...(mod.changelog || [])].sort((a, b) => b.date.localeCompare(a.date));
+  const features = mod.features || [];
+
+  function add() {
+    const e = makeCLEntry(mod.changelog);
+    setMod({ ...mod, changelog: [e, ...(mod.changelog || [])] });
+  }
+
+  function upd(id, field, val) {
+    setMod({ ...mod, changelog: (mod.changelog || []).map(e => e.id === id ? { ...e, [field]: val } : e) });
+  }
+
+  async function del(id) {
+    if (!await showConfirm('Xóa mục lịch sử này?')) return;
+    setMod({ ...mod, changelog: (mod.changelog || []).filter(e => e.id !== id) });
+  }
+
+  return (
+    <div className="cl-wrap">
+      <div className="cl-list">
+        {entries.length === 0 ? (
+          <div className="cl-empty">
+            <i className="ti ti-history cl-empty-icon"/>
+            <p>Chưa có mục nào. Nhấn <strong>+ Thêm mục</strong> để bắt đầu.</p>
+          </div>
+        ) : (
+          entries.map((e, i) => (
+            <ChangelogRow
+              key={e.id}
+              entry={e}
+              idx={i}
+              features={features}
+              onUpdate={(field, val) => upd(e.id, field, val)}
+              onRemove={() => del(e.id)}
+            />
+          ))
+        )}
+      </div>
+      <button className="pd-tl-add-row" onClick={add}>
+        <i className="ti ti-plus"/> Thêm mục
+      </button>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
    MAIN EDITOR
    ════════════════════════════════════════════════════════════ */
-export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBackToModules, notebook, onBackToHome }) {
+export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBackToModules, notebook, onBackToHome, returnContext }) {
   const f = selection.type === "feature" ? mod.features.find(x => x.id === selection.featId) : null;
 
   const headerTitle = (() => {
-    if (selection.type === "overview") return "Tổng quan module";
-    if (selection.type === "mainflow") return "Luồng chính";
-    if (selection.type === "feature")  return f ? f.name : "—";
+    if (selection.type === "overview")   return "Tổng quan module";
+    if (selection.type === "mainflow")   return "Luồng chính";
+    if (selection.type === "feature")    return f ? f.name : "—";
+    if (selection.type === "changelog")  return "Lịch sử thay đổi";
     return "";
   })();
 
   const bcrumb = [
-    { label: "Tất cả sổ tay", onClick: onBackToHome },
+    { label: "Thư viện sổ tay", onClick: onBackToHome },
     notebook ? { label: notebook.name, onClick: onBackToModules } : null,
     { label: mod.name },
     { label: headerTitle }
@@ -1022,6 +1216,11 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
   return (
     <div className="ed-col">
       <div className="ed-head">
+        {returnContext && (
+          <button className="ed-return-ctx-btn" onClick={returnContext.onClick}>
+            <i className="ti ti-arrow-left"/> Dự án: {returnContext.label}
+          </button>
+        )}
         <Breadcrumb items={bcrumb} />
         <h1 className="ed-title">{headerTitle}</h1>
       </div>
@@ -1044,6 +1243,9 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
             setFeature={(nv) => updateFeature(f.id, nv)}
             accent={accent}
           />
+        )}
+        {selection.type === "changelog" && (
+          <ChangelogPane mod={mod} setMod={setMod} />
         )}
       </div>
 

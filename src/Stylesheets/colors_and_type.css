@@ -6,8 +6,8 @@
 :root {
   /* ---------- NEUTRALS (warm, slightly cream) ---------- */
   --bg:        #ffffff;   /* surface 0 — primary panels, top bar */
-  --bg2:       #f7f7f6;   /* surface 1 — table headers, sunken */
-  --bg3:       #f0efed;   /* surface 2 — app shell behind panels */
+  --bg2:       #ffffff;   /* surface 1 — table headers, sunken */
+  --bg3:       #ffffff;   /* surface 2 — app shell behind panels */
 
   --text:      #1a1a18;   /* primary text */
   --text2:     #5a5a56;   /* secondary / labels */
@@ -87,9 +87,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:      #1c1c1a;
-    --bg2:     #242422;
-    --bg3:     #2c2c2a;
+    --bg:      #1a1916;
+    --bg2:     #222018;
+    --bg3:     #2a281f;
     --text:    #e8e8e4;
     --text2:   #a0a09a;
     --text3:   #606058;

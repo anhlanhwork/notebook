@@ -2,13 +2,16 @@
    Per the spec, sub-sections (Models / Luồng / etc.) do NOT appear here —
    they're tabs inside each feature page. */
 
-function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDeleteFeature, onBackToModules }) {
+function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDeleteFeature, onBackToModules, notebook, onBackToHome }) {
   return (
     <aside className="sb">
-      <button className="sb-back" onClick={onBackToModules}>
-        <i className="ti ti-arrow-left"></i>
-        <span>Tất cả sổ tay</span>
-      </button>
+      <div className="sb-breadcrumb">
+        <button className="sb-bc-btn" onClick={onBackToHome}>Thư viện sổ tay</button>
+        {notebook && <>
+          <i className="ti ti-chevron-right sb-bc-sep"></i>
+          <button className="sb-bc-btn" onClick={onBackToModules}>{notebook.name}</button>
+        </>}
+      </div>
       <div className="sb-modhd">
         <div className="sb-modhd-dot" style={{ background: mod.color }}></div>
         <div className="sb-modhd-name">{mod.name}</div>
@@ -65,10 +68,13 @@ function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDe
         </div>
 
         <div className="sb-section-lbl">Khác</div>
-        <button className="sb-item sb-item-disabled" disabled>
+        <button
+          className={"sb-item" + (selection.type === "changelog" ? " active" : "")}
+          onClick={() => onSelect({ type: "changelog" })}
+        >
           <i className="ti ti-history"></i>
           <span>Lịch sử thay đổi</span>
-          <span className="sb-soon">sớm</span>
+          {(mod.changelog?.length > 0) && <span className="sb-chip">{mod.changelog.length}</span>}
         </button>
         <button className="sb-item sb-item-disabled" disabled>
           <i className="ti ti-share"></i>

@@ -9,8 +9,14 @@ import { SharedView } from './shared-view.jsx';
 import LoginScreen from './login.jsx';
 import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor, TweakButton } from './tweaks-panel.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { subscribeNotebooks, upsertNotebook, removeNotebook } from '../services/db.js';
+import { subscribeNotebooks, upsertNotebook, removeNotebook,
+         subscribeProjects, upsertProject, removeProject } from '../services/db.js';
 import SEED_DATA from '../Scripts/data.js';
+import { NavShell } from './nav-shell.jsx';
+import { DashboardScreen } from './dashboard.jsx';
+import { ProjectsScreen } from './projects.jsx';
+import { ExperienceScreen } from './experience.jsx';
+import { DialogHost, showConfirm, showPrompt } from './dialog.jsx';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",
@@ -23,12 +29,18 @@ const LS_KEY_OLD = "odoo18_handbook_v2";
 
 /* Parse current URL into a typed descriptor (no storage reads) */
 function parseUrl() {
-  const shareMatch = location.pathname.match(/^\/share\/([^/]+)/);
-  const nbMatch    = location.pathname.match(/^\/notebook\/([^/]+)/);
-  const modMatch   = location.pathname.match(/^\/module\/([^/]+)/);
-  if (shareMatch) return { type: 'share',    token: shareMatch[1] };
-  if (nbMatch)    return { type: 'notebook', nbId:  nbMatch[1] };
-  if (modMatch)   return { type: 'module',   modId: modMatch[1] };
+  const p = location.pathname;
+  const shareMatch = p.match(/^\/share\/([^/]+)/);
+  const nbMatch    = p.match(/^\/notebook\/([^/]+)/);
+  const modMatch   = p.match(/^\/module\/([^/]+)/);
+  const projMatch  = p.match(/^\/projects\/([^/]+)/);
+  if (shareMatch)       return { type: 'share',    token: shareMatch[1]             };
+  if (nbMatch)          return { type: 'notebook',  nbId:  extractId(nbMatch[1])    };
+  if (modMatch)         return { type: 'module',    modId: extractId(modMatch[1])   };
+  if (projMatch)        return { type: 'project',   projId: extractId(projMatch[1]) };
+  if (p === '/projects')   return { type: 'projects'   };
+  if (p === '/experience') return { type: 'experience' };
+  if (p === '/knowledge')  return { type: 'knowledge'  };
   return { type: 'home' };
 }
 
@@ -63,14 +75,17 @@ function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   const [data,       setData]       = useState({ notebooks: [] });
+  const [projects,   setProjects]   = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [screen,     setScreen]     = useState("loading");
+  const [navSection, setNavSection] = useState("dashboard");
   const [activeNbId, setActiveNbId] = useState(null);
   const [activeModId,setActiveModId]= useState(null);
   const [shareToken, setShareToken] = useState(null);
   const [selection,  setSelection]  = useState({ type: "overview" });
   const [saveState,  setSaveState]  = useState({ kind: "saved", at: nowHHMM() });
   const [toast,      setToast]      = useState(null);
+  const [projReturnCtx, setProjReturnCtx] = useState(null); // { projId, client }
 
   /* Refs to avoid stale-closure issues in async callbacks */
   const dataRef           = useRef(data);
@@ -143,8 +158,11 @@ function App() {
       }
     });
 
+    const unsubProj = subscribeProjects(user.uid, setProjects);
+
     return () => {
       unsub();
+      unsubProj();
       migrationDoneRef.current = false;
     };
   }, [user, authLoading]);
@@ -157,6 +175,7 @@ function App() {
       setScreen("share");
     } else if (url.type === 'notebook') {
       if (notebooks.find(nb => nb.id === url.nbId)) {
+        setNavSection("knowledge");
         setActiveNbId(url.nbId);
         setScreen("notebook");
       } else {
@@ -165,13 +184,28 @@ function App() {
     } else if (url.type === 'module') {
       const nb = notebooks.find(nb => nb.modules?.some(m => m.id === url.modId));
       if (nb) {
+        setNavSection("knowledge");
         setActiveNbId(nb.id);
         setActiveModId(url.modId);
         setScreen("handbook");
       } else {
         setScreen("home");
       }
+    } else if (url.type === 'project') {
+      setNavSection("projects");
+      setScreen("home");
+      setProjReturnCtx({ projId: url.projId, client: '' });
+    } else if (url.type === 'projects') {
+      setNavSection("projects");
+      setScreen("home");
+    } else if (url.type === 'experience') {
+      setNavSection("experience");
+      setScreen("home");
+    } else if (url.type === 'knowledge') {
+      setNavSection("knowledge");
+      setScreen("home");
     } else {
+      setNavSection("dashboard");
       setScreen("home");
     }
   }
@@ -247,21 +281,41 @@ function App() {
 
   /* ── Navigation ── */
   useEffect(() => {
-    function onPop() {
-      const modM = location.pathname.match(/^\/module\/([^/]+)/);
-      const nbM  = location.pathname.match(/^\/notebook\/([^/]+)/);
-      if (modM) {
-        setActiveModId(modM[1]);
+    function onPop(e) {
+      const p     = location.pathname;
+      const modM  = p.match(/^\/module\/([^/]+)/);
+      const nbM   = p.match(/^\/notebook\/([^/]+)/);
+      const projM = p.match(/^\/projects\/([^/]+)/);
+      if (e.state?.returnTo === 'projects') {
+        setNavSection('projects');
+        setActiveNbId(null); setActiveModId(null); setScreen('home');
+        if (e.state.projId) setProjReturnCtx({ projId: e.state.projId, client: e.state.client || '' });
+      } else if (projM) {
+        setNavSection('projects');
+        setActiveNbId(null); setActiveModId(null); setScreen('home');
+        setProjReturnCtx({ projId: extractId(projM[1]), client: '' });
+      } else if (modM) {
+        setNavSection("knowledge");
+        setActiveModId(extractId(modM[1]));
         setScreen("handbook");
         setSelection({ type: "overview" });
       } else if (nbM) {
-        setActiveNbId(nbM[1]);
+        setNavSection("knowledge");
+        setActiveNbId(extractId(nbM[1]));
         setActiveModId(null);
         setScreen("notebook");
-      } else {
-        setActiveNbId(null);
-        setActiveModId(null);
+      } else if (p === '/projects') {
+        setNavSection("projects");
+        setActiveNbId(null); setActiveModId(null); setScreen("home");
+      } else if (p === '/experience') {
+        setNavSection("experience");
         setScreen("home");
+      } else if (p === '/knowledge') {
+        setNavSection("knowledge");
+        setActiveNbId(null); setActiveModId(null); setScreen("home");
+      } else {
+        setNavSection("dashboard");
+        setActiveNbId(null); setActiveModId(null); setScreen("home");
       }
     }
     window.addEventListener("popstate", onPop);
@@ -269,41 +323,117 @@ function App() {
   }, []);
 
   function openNotebook(nbId) {
-    history.pushState(null, "", "/notebook/" + nbId);
+    const nb   = data.notebooks.find(n => n.id === nbId);
+    const slug = toSlug(nb?.name || '') + '-' + nbId;
+    history.pushState(null, "", "/notebook/" + slug);
+    setNavSection("knowledge");
     setActiveNbId(nbId); setActiveModId(null); setScreen("notebook");
   }
   function openModule(modId) {
-    history.pushState(null, "", "/module/" + modId);
+    const mod  = data.notebooks.flatMap(nb => nb.modules || []).find(m => m.id === modId);
+    const slug = toSlug(mod?.name || '') + '-' + modId;
+    history.pushState(null, "", "/module/" + slug);
+    setNavSection("knowledge");
     setActiveModId(modId); setScreen("handbook"); setSelection({ type: "overview" });
   }
   function backToNotebook() {
-    history.pushState(null, "", "/notebook/" + activeNbId);
+    const nb   = data.notebooks.find(n => n.id === activeNbId);
+    const slug = toSlug(nb?.name || '') + '-' + activeNbId;
+    history.pushState(null, "", "/notebook/" + slug);
     setActiveModId(null); setScreen("notebook");
   }
   function backToHome() {
-    history.pushState(null, "", "/");
+    history.pushState(null, "", "/knowledge");
     setActiveNbId(null); setActiveModId(null); setScreen("home");
   }
 
+  /* ── Feature linking from Projects ── */
+  function openFeatureFromProject(moduleId, featureId, projId, client) {
+    const nb  = data.notebooks.find(nb => nb.modules?.some(m => m.id === moduleId));
+    if (!nb) return;
+    const mod      = nb.modules.find(m => m.id === moduleId);
+    const projSlug = toSlug(client) + '-' + projId;
+    const modSlug  = toSlug(mod?.name || '') + '-' + moduleId;
+    history.replaceState({ returnTo: 'projects', projId, client }, '', '/projects/' + projSlug);
+    history.pushState(null, '', '/module/' + modSlug);
+    setNavSection('knowledge');
+    setActiveNbId(nb.id);
+    setActiveModId(moduleId);
+    setScreen('handbook');
+    setSelection({ type: 'feature', featId: featureId });
+    setProjReturnCtx({ projId, client });
+  }
+
+  function backToProject() {
+    const { projId, client } = projReturnCtx || {};
+    const slug = toSlug(client || '') + '-' + (projId || '');
+    history.pushState(null, '', '/projects/' + slug);
+    setNavSection('projects');
+    setActiveNbId(null); setActiveModId(null); setScreen('home');
+    // projReturnCtx stays set so ProjectsScreen can restore the detail
+  }
+
+  function createModule(notebookId, moduleName) {
+    const nb = data.notebooks.find(n => n.id === notebookId);
+    if (!nb) return null;
+    const newMod = {
+      id: 'mod_' + Math.random().toString(36).slice(2, 7),
+      name: moduleName.trim(),
+      tech: moduleName.trim().toLowerCase().replace(/\s+/g, '_'),
+      color: '#5BAA50', status: 'pending',
+      updatedAt: new Date().toISOString().slice(0, 10),
+      overview: { version: '', category: '', depends: '', menu: '', purpose: '' },
+      mainFlows: [], features: [],
+    };
+    const updatedNb = { ...nb, modules: [...(nb.modules || []), newMod] };
+    handleSetData({ ...data, notebooks: data.notebooks.map(n => n.id === notebookId ? updatedNb : n) });
+    return { notebookId, notebookName: nb.name, moduleId: newMod.id, moduleName: newMod.name };
+  }
+
+  function createFeatureInModule(moduleId, featureName) {
+    const nb = data.notebooks.find(nb => nb.modules?.some(m => m.id === moduleId));
+    if (!nb) return null;
+    const newFeat = {
+      id: 'f_' + Math.random().toString(36).slice(2, 6),
+      name: featureName, desc: '', models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: ''
+    };
+    const updatedNb = {
+      ...nb,
+      modules: nb.modules.map(m => m.id === moduleId
+        ? { ...m, features: [...(m.features || []), newFeat] }
+        : m
+      )
+    };
+    handleSetData({ ...data, notebooks: data.notebooks.map(n => n.id === nb.id ? updatedNb : n) });
+    return {
+      notebookId: nb.id,
+      notebookName: nb.name,
+      moduleId,
+      moduleName: nb.modules.find(m => m.id === moduleId)?.name || '',
+      featureId: newFeat.id,
+      featureName: newFeat.name,
+    };
+  }
+
   /* ── Feature CRUD ── */
-  function addFeature() {
+  async function addFeature() {
     if (!activeMod) return;
-    const id   = "f_" + Math.random().toString(36).slice(2, 6);
-    const name = prompt("Tên tính năng mới:", "Tính năng mới");
+    const name = await showPrompt("Tên tính năng mới:", "Tính năng mới");
     if (!name) return;
+    const id   = "f_" + Math.random().toString(36).slice(2, 6);
     const newF = { id, name, desc: "", models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: "" };
     setActiveMod({ ...activeMod, features: [...activeMod.features, newF] });
     setSelection({ type: "feature", featId: id });
   }
-  function renameFeature(featId) {
+  async function renameFeature(featId) {
     const f = activeMod?.features.find(x => x.id === featId);
     if (!f) return;
-    const name = prompt("Đổi tên tính năng:", f.name);
+    const name = await showPrompt("Đổi tên tính năng:", f.name);
     if (!name) return;
     setActiveMod({ ...activeMod, features: activeMod.features.map(x => x.id === featId ? { ...x, name } : x) });
   }
-  function deleteFeature(featId) {
-    if (!confirm("Xóa tính năng này?")) return;
+  async function deleteFeature(featId) {
+    if (!await showConfirm("Xóa tính năng này?")) return;
     setActiveMod({ ...activeMod, features: activeMod.features.filter(x => x.id !== featId) });
     if (selection.featId === featId) setSelection({ type: "overview" });
   }
@@ -333,14 +463,10 @@ function App() {
 
   if (!user && screen !== "share") return <LoginScreen />;
 
-  /* ── Main app ── */
-  return (
-    <div className="app-root">
-
-      {screen === "share" && shareToken ? (
-        <SharedView token={shareToken} />
-
-      ) : screen === "handbook" && activeMod ? (
+  /* ── Knowledge section content ── */
+  function KnowledgeContent() {
+    if (screen === "handbook" && activeMod) {
+      return (
         <div className="app-shell">
           <Sidebar
             mod={activeMod}
@@ -350,6 +476,8 @@ function App() {
             onRenameFeature={renameFeature}
             onDeleteFeature={deleteFeature}
             onBackToModules={backToNotebook}
+            notebook={activeNotebook}
+            onBackToHome={backToHome}
           />
           <Editor
             mod={activeMod}
@@ -361,10 +489,13 @@ function App() {
             onBackToModules={backToNotebook}
             notebook={activeNotebook}
             onBackToHome={backToHome}
+            returnContext={projReturnCtx ? { label: projReturnCtx.client, onClick: backToProject } : null}
           />
         </div>
-
-      ) : screen === "notebook" && activeNotebook ? (
+      );
+    }
+    if (screen === "notebook" && activeNotebook) {
+      return (
         <div className="app-shell app-shell-list">
           <ModuleListScreen
             notebook={activeNotebook}
@@ -374,16 +505,77 @@ function App() {
           />
           <Savebar />
         </div>
+      );
+    }
+    return (
+      <div className="app-shell app-shell-list">
+        <HomeScreen
+          data={data}
+          setData={handleSetData}
+          onOpen={openNotebook}
+        />
+        <Savebar />
+      </div>
+    );
+  }
 
+  /* ── Main app ── */
+  return (
+    <div className="app-root">
+      <DialogHost />
+
+      {screen === "share" && shareToken ? (
+        <SharedView token={shareToken} />
       ) : (
-        <div className="app-shell app-shell-list">
-          <HomeScreen
+        <NavShell navSection={navSection} setNavSection={(sec) => {
+          setNavSection(sec);
+          setActiveNbId(null);
+          setActiveModId(null);
+          setScreen('home');
+          setProjReturnCtx(null);
+          const urlMap = { dashboard: '/', projects: '/projects', experience: '/experience', knowledge: '/knowledge' };
+          history.pushState(null, '', urlMap[sec] || '/');
+        }}>
+          {navSection === "dashboard" && <DashboardScreen
             data={data}
-            setData={handleSetData}
-            onOpen={openNotebook}
-          />
-          <Savebar />
-        </div>
+            projects={projects}
+            onOpenNotebook={openNotebook}
+            onOpenProject={(projId) => {
+              setNavSection("projects");
+              setScreen("home");
+              setProjReturnCtx({ projId, client: '' });
+              history.pushState(null, '', '/projects');
+            }}
+            onNavigate={(sec) => {
+              setNavSection(sec);
+              setActiveNbId(null);
+              setActiveModId(null);
+              setScreen("home");
+              setProjReturnCtx(null);
+              const urlMap = { dashboard: '/', projects: '/projects', experience: '/experience', knowledge: '/knowledge' };
+              history.pushState(null, '', urlMap[sec] || '/');
+            }}
+          />}
+          {navSection === "projects"  && <ProjectsScreen
+            projects={projects}
+            notebooks={data.notebooks}
+            onOpenFeature={openFeatureFromProject}
+            onCreateFeature={createFeatureInModule}
+            onCreateModule={createModule}
+            initialDetailProjId={projReturnCtx?.projId}
+            onDetailRestored={() => setProjReturnCtx(null)}
+            onUpsert={async p => {
+              try { await upsertProject(user.uid, p); }
+              catch (e) { showToast('Lỗi lưu dự án – kiểm tra Firestore rules'); console.error(e); }
+            }}
+            onRemove={async id => {
+              try { await removeProject(id); }
+              catch (e) { showToast('Lỗi xóa dự án – kiểm tra Firestore rules'); console.error(e); }
+            }}
+          />}
+          {navSection === "knowledge" && <KnowledgeContent />}
+          {navSection === "experience" && <ExperienceScreen projects={projects} />}
+        </NavShell>
       )}
 
       {toast && (
@@ -410,7 +602,7 @@ function App() {
         </TweakSection>
         <TweakSection label="Dữ liệu">
           <TweakButton label="Reset về dữ liệu mẫu" onClick={async () => {
-            if (!confirm("Reset toàn bộ về dữ liệu mẫu? Xoá tất cả sổ tay hiện tại.")) return;
+            if (!await showConfirm("Reset toàn bộ về dữ liệu mẫu? Xoá tất cả sổ tay hiện tại.")) return;
             if (!user) return;
             await Promise.all(data.notebooks.map(nb => removeNotebook(nb.id)));
             await Promise.all(SEED_DATA.notebooks.map(nb => upsertNotebook(user.uid, nb)));
@@ -423,6 +615,28 @@ function App() {
 
 function nowHHMM() {
   return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* Convert a display name to a URL-safe slug */
+export function toSlug(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/[àáảãạăắằẳẵặâấầẩẫậ]/g, 'a')
+    .replace(/[èéẻẽẹêếềểễệ]/g, 'e')
+    .replace(/[ìíỉĩị]/g, 'i')
+    .replace(/[òóỏõọôốồổỗộơớờởỡợ]/g, 'o')
+    .replace(/[ùúủũụưứừửữự]/g, 'u')
+    .replace(/[ỳýỷỹỵ]/g, 'y')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'unnamed';
+}
+
+/* Extract the raw ID from the end of a slug: "ten-du-an-proj_abc" → "proj_abc" */
+function extractId(slug) {
+  const m = slug.match(/-([a-z]+_\w+)$/);
+  return m ? m[1] : slug; // fallback for old bare-ID URLs
 }
 function shade(hex, percent) {
   const h = hex.replace("#", "");

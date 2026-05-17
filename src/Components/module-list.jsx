@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ShareModal } from './share-modal.jsx';
+import { showConfirm } from './dialog.jsx';
 
 const STATUS_META = {
   pending:  { label: "Chưa bắt đầu",   color: "var(--text3)",   bg: "var(--bg3)"     },
@@ -75,9 +76,9 @@ function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
     onOpen(newMod.id);
   }
 
-  function deleteModule(id, e) {
+  async function deleteModule(id, e) {
     e.stopPropagation();
-    if (!confirm("Xóa module này khỏi sổ tay?")) return;
+    if (!await showConfirm("Xóa module này khỏi sổ tay?")) return;
     setNotebook({ ...notebook, modules: modules.filter(m => m.id !== id) });
   }
 
@@ -113,27 +114,27 @@ function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
 
   return (
     <div className="ml-screen">
-      <div className="ml-hero" style={{
-        background: `radial-gradient(ellipse at 0% 60%, ${notebook.color}28 0%, transparent 55%), linear-gradient(180deg, var(--bg2) 0%, var(--bg3) 100%)`
-      }}>
+      <div className="ml-hero">
         <div className="ml-hero-inner">
-          {onBack && (
-            <button className="ml-back" onClick={onBack}>
-              <i className="ti ti-arrow-left"></i> Trang chủ
-            </button>
-          )}
-          <div className="ml-header-row">
-            <div className="ml-header-hd">
-              <div className="ml-header-icon" style={{ background: notebook.color }}>
-                <i className={`ti ${notebook.icon || "ti-clipboard-list"}`}></i>
-              </div>
-              <div>
-                <div className="eyebrow">Sổ tay nội bộ</div>
-                <h1 className="ml-title">{notebook.name}</h1>
-                <p className="ml-sub">
-                  {modules.length} module · {totalFeatures} tính năng đã ghi chép
-                </p>
-              </div>
+          <div className="ml-hero-nav">
+            <div className="bc-t1">
+              <button className="bc-item bc-link" onClick={onBack}>Thư viện sổ tay</button>
+              <i className="ti ti-chevron-right bc-sep"></i>
+              <span className="bc-item bc-item--active">{notebook.name}</span>
+            </div>
+          </div>
+
+          <div className="ml-hero-top">
+            <div className="ml-hero-left">
+              <h1 className="ml-title">
+                <span className="ml-title-icon">
+                  <i className="ti ti-notebook"></i>
+                </span>
+                {notebook.name}
+              </h1>
+              <p className="ml-sub">
+                {modules.length} module · {totalFeatures} tính năng đã ghi chép
+              </p>
             </div>
             <button className="btn-primary" onClick={openAddModal}>
               <i className="ti ti-plus"></i> Thêm module
@@ -169,7 +170,8 @@ function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
         </div>
       </div>
 
-      <div className="ml-grid">
+      <div className="ml-body">
+        <div className="ml-grid">
         {filtered.map(m => {
           const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
           const st   = STATUS_META[m.status] || STATUS_META.pending;
@@ -250,6 +252,7 @@ function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
             <div className="ml-add-sub">Bắt đầu ghi chép một module Odoo mới</div>
           </div>
         </div>
+      </div>
       </div>
 
       {shareItem && (

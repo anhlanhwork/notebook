@@ -4,7 +4,8 @@ import {
   onSnapshot, query, where
 } from 'firebase/firestore';
 
-const COL = 'notebooks';
+const COL      = 'notebooks';
+const PROJ_COL = 'projects';
 
 /* ── Real-time listener ──────────────────────────────────────────
    Subscribes to all notebooks owned by `uid`.
@@ -26,6 +27,22 @@ export async function upsertNotebook(uid, notebook) {
 /* ── Delete ──────────────────────────────────────────────────── */
 export async function removeNotebook(notebookId) {
   await deleteDoc(doc(db, COL, notebookId));
+}
+
+/* ── Client Projects ─────────────────────────────────────────── */
+export function subscribeProjects(uid, onChange) {
+  const q = query(collection(db, PROJ_COL), where('owner_id', '==', uid));
+  return onSnapshot(
+    q,
+    snap => onChange(snap.docs.map(d => ({ ...d.data() }))),
+    err  => console.error('[subscribeProjects] permission error – check Firestore rules:', err)
+  );
+}
+export async function upsertProject(uid, project) {
+  await setDoc(doc(db, PROJ_COL, project.id), { ...project, owner_id: uid });
+}
+export async function removeProject(projectId) {
+  await deleteDoc(doc(db, PROJ_COL, projectId));
 }
 
 /* ── Data cleanup for AI requests ───────────────────────────────

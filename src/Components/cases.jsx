@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { showConfirm } from './dialog.jsx';
 
 /* CasesPane — list of customer-encountered issue cases.
    Per case: title, link nhóm (chat/Slack), mô tả lỗi, ảnh chụp,
@@ -185,7 +186,7 @@ export function CasesPane({ cases = [], onChange }) {
   }
 
   function update(id, nv) { onChange(cases.map(c => c.id === id ? nv : c)); }
-  function del(id) { if (window.confirm("Xóa case này?")) onChange(cases.filter(c => c.id !== id)); }
+  async function del(id) { if (await showConfirm("Xóa case này?")) onChange(cases.filter(c => c.id !== id)); }
   function move(idx, dir) {
     const next = [...cases];
     const tmp = next[idx]; next[idx] = next[idx + dir]; next[idx + dir] = tmp;

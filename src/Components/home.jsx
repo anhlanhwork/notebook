@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { ShareModal } from './share-modal.jsx';
-import { useAuth } from '../hooks/useAuth.jsx';
+import { showConfirm } from './dialog.jsx';
 
 const PRESET_COLORS = [
   "#5BAA50", "#1F6B40", "#378ADD", "#BA7517",
@@ -16,8 +16,9 @@ const NOTEBOOK_ICONS = [
 ];
 
 function HomeScreen({ data, setData, onOpen }) {
-  const { user, logout } = useAuth();
+
   const [query,     setQuery]  = useState("");
+  const [view,      setView]   = useState("grid");
   const [modalOpen, setModal]  = useState(false);
   const [shareItem, setShareItem] = useState(null);
   const [editItem,  setEditItem]  = useState(null);
@@ -43,9 +44,9 @@ function HomeScreen({ data, setData, onOpen }) {
       })
     : data.notebooks;
 
-  function deleteNotebook(id, e) {
+  async function deleteNotebook(id, e) {
     e.stopPropagation();
-    if (!confirm("Xóa sổ tay này?")) return;
+    if (!await showConfirm("Xóa sổ tay này?")) return;
     setData({ ...data, notebooks: data.notebooks.filter(nb => nb.id !== id) });
   }
 
@@ -105,37 +106,27 @@ function HomeScreen({ data, setData, onOpen }) {
     <div className="home-screen">
 
       {/* ── Hero ── */}
+      <div className="home-hero-wrap">
       <div className="home-hero">
         <div className="home-hero-inner">
-          <div className="home-hero-left">
-            <div className="eyebrow">Sổ tay nội bộ</div>
-            <h1 className="home-title">Thư viện sổ tay</h1>
-            <p className="home-sub">
-              Tài liệu nghiên cứu chia theo nhóm chủ đề. Mỗi sổ tay — mỗi module chứa nhiều
+          <div className="clt-hero-left">
+            <div className="clt-eyebrow">Sổ tay nội bộ</div>
+            <h1 className="clt-hero-title">Thư viện sổ tay</h1>
+            <p className="clt-hero-sub">
+              Tài liệu nghiên cứu chia theo nhóm chủ đề. Mỗi sổ tay chứa nhiều module — mỗi module chứa các
               tính năng, luồng, models và case khách hàng.
             </p>
-            <div className="home-hero-stats">
+            <div className="clt-hero-stats">
               <span><b>{data.notebooks.length}</b> sổ tay</span>
-              <span className="home-stats-dot">·</span>
+              <span className="clt-hero-stats-dot">·</span>
               <span><b>{totalModules}</b> modules</span>
-              <span className="home-stats-dot">·</span>
+              <span className="clt-hero-stats-dot">·</span>
               <span><b>{totalFeatures}</b> tính năng đã ghi chép</span>
             </div>
           </div>
 
-          {user && (
-            <div className="home-hero-user">
-              {user.photoURL
-                ? <img src={user.photoURL} className="home-user-avatar" referrerPolicy="no-referrer" alt="" />
-                : <div className="home-user-avatar home-user-avatar--init">
-                    {(user.displayName || user.email || "?")[0].toUpperCase()}
-                  </div>
-              }
-              <div className="home-user-name">{(user.displayName || user.email || "").toUpperCase()}</div>
-              <button className="home-user-logout" onClick={logout}>Đăng xuất</button>
-            </div>
-          )}
         </div>
+      </div>
       </div>
 
       {/* ── Body ── */}
@@ -150,12 +141,25 @@ function HomeScreen({ data, setData, onOpen }) {
             />
             {query && <button onClick={() => setQuery("")}><i className="ti ti-x"></i></button>}
           </div>
+          <div className="home-view-toggle">
+            <button
+              className={"hvt-btn" + (view === "grid" ? " active" : "")}
+              onClick={() => setView("grid")}
+              title="Dạng lưới"
+            ><i className="ti ti-layout-grid"></i></button>
+            <button
+              className={"hvt-btn" + (view === "list" ? " active" : "")}
+              onClick={() => setView("list")}
+              title="Dạng danh sách"
+            ><i className="ti ti-list"></i></button>
+          </div>
           <button className="btn-primary" onClick={openModal}>
             <i className="ti ti-plus"></i> Tạo sổ tay mới
           </button>
         </div>
 
         {displayed.length > 0 ? (
+          view === "grid" ? (
           <div className="home-grid">
             {displayed.map(nb => {
               const modCount  = nb.modules?.length || 0;
@@ -273,6 +277,68 @@ function HomeScreen({ data, setData, onOpen }) {
               </div>
             </div>
           </div>
+          ) : (
+          <div className="home-list">
+            {displayed.map(nb => {
+              const modCount  = nb.modules?.length || 0;
+              const featCount = nb.modules?.reduce((s, m) =>
+                s + (m.features?.reduce((fs, f) =>
+                  fs + (f.flows?.length || 0) + (f.detailBlocks?.length || 0), 0) || 0), 0) || 0;
+              const doneCnt  = nb.modules?.filter(m => m.status === "done").length    || 0;
+              const studyCnt = nb.modules?.filter(m => m.status === "studying").length || 0;
+
+              return (
+                <div key={nb.id} className="hl-row" onClick={() => onOpen(nb.id)}>
+                  <div
+                    className="hl-icon"
+                    style={{ background: `linear-gradient(135deg, ${nb.color} 0%, ${nb.color}bb 100%)` }}
+                  >
+                    <i className={`ti ${nb.icon || "ti-clipboard-list"}`}></i>
+                  </div>
+
+                  <div className="hl-main">
+                    <div className="hl-name-row">
+                      <span className="hl-name">{nb.name}</span>
+                      {(nb.tags || []).map(t => (
+                        <span key={t} className="home-tag">{t}</span>
+                      ))}
+                    </div>
+                    {nb.description && (
+                      <p className="hl-desc">{nb.description}</p>
+                    )}
+                  </div>
+
+                  <div className="hl-meta">
+                    <span className="hl-stat"><i className="ti ti-layout-grid"></i> {modCount} module</span>
+                    <span className="hl-stat"><i className="ti ti-puzzle"></i> {featCount} tính năng</span>
+                  </div>
+
+                  <div className="hl-status">
+                    {doneCnt > 0 && <span className="hcs-done"><i className="ti ti-circle-check"></i> {doneCnt}</span>}
+                    {studyCnt > 0 && <span className="hcs-study"><i className="ti ti-loader"></i> {studyCnt}</span>}
+                  </div>
+
+                  <span className="hl-date">{nb.updatedAt}</span>
+
+                  <div className="hl-actions">
+                    <button
+                      className={`home-card-share${nb.shareRole && nb.shareRole !== "private" ? " shared" : ""}`}
+                      onClick={e => { e.stopPropagation(); setShareItem(nb); }}
+                      title="Chia sẻ"
+                    ><i className={`ti ${nb.shareRole === "viewer" ? "ti-eye" : nb.shareRole === "editor" ? "ti-users" : "ti-share"}`}></i></button>
+                    <button className="home-card-edit" onClick={e => openEdit(nb, e)} title="Chỉnh sửa">
+                      <i className="ti ti-edit"></i>
+                    </button>
+                    <button className="home-card-del" onClick={e => deleteNotebook(nb.id, e)} title="Xóa">
+                      <i className="ti ti-trash"></i>
+                    </button>
+                    <i className="ti ti-chevron-right hl-arrow"></i>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          )
         ) : (
           <div className="home-no-results">
             <i className="ti ti-search-off"></i>
