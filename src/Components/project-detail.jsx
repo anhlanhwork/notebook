@@ -10,10 +10,11 @@ const PROJ_STATUS = {
 };
 
 const FEAT_STATUS = {
-  done:      { label: 'Hoàn thành',      dot: '#5BAA50' },
-  deploying: { label: 'Đang triển khai', dot: '#378ADD' },
-  studying:  { label: 'Đang nghiên cứu', dot: '#9CA3AF' },
   pending:   { label: 'Chưa bắt đầu',   dot: '#D1D5DB' },
+  studying:  { label: 'Đang nghiên cứu', dot: '#9B8EF0' },
+  deploying: { label: 'Đang triển khai', dot: '#F59E0B' },
+  overdue:   { label: 'Quá hạn',         dot: '#EF4444' },
+  done:      { label: 'Hoàn thành',      dot: '#5BAA50' },
 };
 
 const TABS = [
@@ -26,17 +27,24 @@ const TABS = [
 ];
 
 const CL_TYPES = {
-  feature:     { label: 'Tính năng mới', color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'   },
-  improvement: { label: 'Cải tiến',      color: '#378ADD', bg: 'rgba(55,138,221,0.12)'  },
+  modified:    { label: 'Modified',      color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'   },
+  feature:     { label: 'Tính năng mới', color: '#378ADD', bg: 'rgba(55,138,221,0.12)'  },
+  improvement: { label: 'Cải tiến',      color: '#6366F1', bg: 'rgba(99,102,241,0.12)'  },
   fix:         { label: 'Sửa lỗi',       color: '#EF4444', bg: 'rgba(239,68,68,0.12)'   },
   config:      { label: 'Cấu hình',      color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  },
   note:        { label: 'Ghi chú',       color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
 };
 
 const CL_STATUS = {
-  draft:    { label: 'Soạn thảo',    color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
-  review:   { label: 'Đang review',  color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  },
-  approved: { label: 'Đã duyệt',     color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'   },
+  draft:    { label: 'Chờ',      icon: 'ti-clock',        color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  },
+  review:   { label: 'Đang xét', icon: 'ti-eye',          color: '#378ADD', bg: 'rgba(55,138,221,0.12)'  },
+  approved: { label: 'Đã duyệt', icon: 'ti-circle-check', color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'   },
+};
+
+const CL_IMPACT = {
+  low:    { label: 'Thấp',      color: '#9CA3AF' },
+  medium: { label: 'Trung bình', color: '#F59E0B' },
+  high:   { label: 'Cao',       color: '#EF4444' },
 };
 
 function makeCLEntry(changelog) {
@@ -48,8 +56,9 @@ function makeCLEntry(changelog) {
     id:        'cl_' + Math.random().toString(36).slice(2, 8),
     date:      now.toISOString().slice(0, 10),
     version:   nextVer,
-    type:      'feature',
+    type:      'modified',
     status:    'draft',
+    impact:    'low',
     author:    '',
     featureId: '',
     title:     '',
@@ -69,7 +78,7 @@ const TL_TYPE = {
 function makeFeat(parentId = null) {
   return {
     id: 'feat_' + Math.random().toString(36).slice(2, 8),
-    name: '', status: 'pending', parentId, linkedFeature: null,
+    name: '', status: 'pending', assignee: '', parentId, linkedFeature: null,
   };
 }
 
@@ -101,17 +110,49 @@ function makeGroup() {
 }
 
 const DOC_TYPE = {
-  design:      { label: 'Thiết kế',  color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
-  spec:        { label: 'Đặc tả',    color: '#378ADD', bg: 'rgba(55,138,221,0.12)' },
-  requirement: { label: 'Yêu cầu',   color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-  report:      { label: 'Báo cáo',   color: '#5BAA50', bg: 'rgba(91,170,80,0.12)'  },
-  other:       { label: 'Khác',      color: '#9CA3AF', bg: 'rgba(156,163,175,0.12)' },
+  contract: { label: 'Hợp đồng',     color: '#E11D48', bg: 'rgba(225,29,72,0.10)'   },
+  guide:    { label: 'Hướng dẫn',    color: '#7C3AED', bg: 'rgba(124,58,237,0.10)'  },
+  minutes:  { label: 'Biên bản họp', color: '#0D9488', bg: 'rgba(13,148,136,0.10)'  },
+  spec:     { label: 'Đặc tả',       color: '#378ADD', bg: 'rgba(55,138,221,0.10)'  },
+  report:   { label: 'Báo cáo',      color: '#5BAA50', bg: 'rgba(91,170,80,0.10)'   },
+  other:    { label: 'Khác',         color: '#9CA3AF', bg: 'rgba(156,163,175,0.10)' },
 };
+
+const DOC_SOURCE = {
+  gdrive:  { label: 'Google Drive',  icon: 'ti-brand-google-drive', color: '#4285F4' },
+  gdocs:   { label: 'Google Docs',   icon: 'ti-file-text',          color: '#4285F4' },
+  gsheets: { label: 'Google Sheets', icon: 'ti-table',              color: '#0F9D58' },
+  notion:  { label: 'Notion',        icon: 'ti-brand-notion',       color: '#191919' },
+  other:   { label: 'Liên kết',      icon: 'ti-link',               color: '#9CA3AF' },
+};
+
+function detectSource(link) {
+  if (!link) return DOC_SOURCE.other;
+  if (link.includes('docs.google.com/document')) return DOC_SOURCE.gdocs;
+  if (link.includes('docs.google.com/spreadsheets') || link.includes('sheets.google.com')) return DOC_SOURCE.gsheets;
+  if (link.includes('drive.google.com')) return DOC_SOURCE.gdrive;
+  if (link.includes('notion.so')) return DOC_SOURCE.notion;
+  return DOC_SOURCE.other;
+}
+
+const AVATAR_PALETTE = ['#5BAA50','#378ADD','#E11D48','#7C3AED','#F59E0B','#0D9488','#EC4899','#F97316'];
+function avatarColor(str) {
+  let h = 0;
+  for (let i = 0; i < (str || '').length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffffffff;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+function fmtFull(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
 
 function makeDoc(parentId = null) {
   return {
     id: 'doc_' + Math.random().toString(36).slice(2, 8),
-    name: '', link: '', type: 'other', notes: '', parentId,
+    name: '', link: '', type: 'other', addedBy: '',
+    updatedAt: new Date().toISOString().slice(0, 10), parentId,
   };
 }
 
@@ -261,9 +302,6 @@ export function ProjectDetailScreen({ proj, onBack, onUpsert, onEdit, notebooks,
           </div>
         </div>
         <div className="pd-hero-right">
-          <button className="pd-notebook-btn" onClick={onEdit}>
-            <i className="ti ti-notebook"/> Mở sổ tay
-          </button>
           <div className="pd-more-wrap">
             <button className="pd-more-btn" onClick={e => { e.stopPropagation(); setMorePop(p => !p); }}>
               <i className="ti ti-dots-vertical"/>
@@ -454,8 +492,8 @@ function TimelineTable({ items, onChange }) {
   function updateRow(id, key, value) {
     onChange(walkUpdate(items, id, it => ({ ...it, [key]: value })));
   }
-  function deleteRow(id, hasChildren) {
-    if (!confirm(hasChildren ? 'Xóa mốc này và toàn bộ mốc con bên trong?' : 'Xóa mốc này?')) return;
+  async function deleteRow(id, hasChildren) {
+    if (!await showConfirm(hasChildren ? 'Xóa mốc này và toàn bộ mốc con bên trong?' : 'Xóa mốc này?')) return;
     onChange(walkDelete(items, id));
   }
   function addChild(parentId) {
@@ -509,7 +547,10 @@ function TimelineTable({ items, onChange }) {
                  onChange={e => updateRow(item.id, 'end', e.target.value)}/>
         </td>
         <td className="tl-duration">
-          {daysBetween(item.start, item.end)} <span>ngày</span>
+          <div className="tl-dur-inner">
+            <span className="tl-dur-num">{daysBetween(item.start, item.end)}</span>
+            <span className="tl-dur-lbl">ngày</span>
+          </div>
         </td>
         <td>
           <TLProgressCell value={item.progress || 0}
@@ -713,6 +754,7 @@ function TimelineGantt({ items }) {
 /* ── Features tab ── */
 function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature, onCreateModule, onAddChangelog }) {
   const features = proj.features || [];
+  const members  = proj.members  || [];
   const [picker, setPicker] = useState(null);
 
   function save(newFeatures) {
@@ -728,6 +770,14 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
     save(features.filter(f => !toRemove.has(f.id)));
   }
 
+  const counts = {
+    pending:   features.filter(f => f.status === 'pending').length,
+    studying:  features.filter(f => f.status === 'studying').length,
+    deploying: features.filter(f => f.status === 'deploying').length,
+    overdue:   features.filter(f => f.status === 'overdue').length,
+    done:      features.filter(f => f.status === 'done').length,
+  };
+
   function renderRows(parentId, wbsPrefix, depth) {
     return features
       .filter(f => parentId === null ? !f.parentId : f.parentId === parentId)
@@ -737,6 +787,7 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
           <React.Fragment key={feat.id}>
             <FeatureRow
               feat={feat} wbs={wbs} depth={depth}
+              members={members}
               onUpdate={(field, val) => updateFeature(feat.id, field, val)}
               onRemove={() => removeFeature(feat.id)}
               onAddChild={() => addFeature(feat.id)}
@@ -754,17 +805,45 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
     <div className="pd-features">
       <div className="pd-tl-bar">
         <div className="pd-tl-bar-left">
-          <h3 className="pd-tl-title">Phân rã tính năng hệ thống</h3>
+          <h3 className="pd-tl-title">Danh sách tính năng</h3>
+          {features.length > 0 && (
+            <span className="pd-feat-count-note">{features.length} tính năng (gồm cả tính năng con)</span>
+          )}
         </div>
         <button className="btn-primary" onClick={() => addFeature()}>
-          <i className="ti ti-plus"/> Thêm tính năng mẹ
+          <i className="ti ti-plus"/> Thêm tính năng
         </button>
       </div>
+
+      {features.length > 0 && (
+        <div className="pd-feat-summary">
+          <div className="pd-feat-sum-card pd-feat-sum-card--pending">
+            <span className="pd-feat-sum-count">{counts.pending}</span>
+            <span className="pd-feat-sum-label">Chưa bắt đầu</span>
+          </div>
+          <div className="pd-feat-sum-card pd-feat-sum-card--studying">
+            <span className="pd-feat-sum-count">{counts.studying}</span>
+            <span className="pd-feat-sum-label">Đang nghiên cứu</span>
+          </div>
+          <div className="pd-feat-sum-card pd-feat-sum-card--deploying">
+            <span className="pd-feat-sum-count">{counts.deploying}</span>
+            <span className="pd-feat-sum-label">Đang triển khai</span>
+          </div>
+          <div className="pd-feat-sum-card pd-feat-sum-card--overdue">
+            <span className="pd-feat-sum-count">{counts.overdue}</span>
+            <span className="pd-feat-sum-label">Quá hạn</span>
+          </div>
+          <div className="pd-feat-sum-card pd-feat-sum-card--done">
+            <span className="pd-feat-sum-count">{counts.done}</span>
+            <span className="pd-feat-sum-label">Hoàn thành</span>
+          </div>
+        </div>
+      )}
 
       {features.length === 0 ? (
         <div className="pd-tl-empty">
           <i className="ti ti-puzzle-off"/>
-          <p>Chưa có tính năng nào. Nhấn "Thêm tính năng mẹ" để bắt đầu phân rã.</p>
+          <p>Chưa có tính năng nào. Nhấn "Thêm tính năng" để bắt đầu.</p>
         </div>
       ) : (
         <div className="pd-tl-wrap">
@@ -773,6 +852,7 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
               <tr>
                 <th className="pd-th pd-th--wbs">WBS</th>
                 <th className="pd-th pd-th--feat-name">Tên tính năng / Nghiệp vụ</th>
+                <th className="pd-th pd-th--feat-assignee">Người phụ trách</th>
                 <th className="pd-th pd-th--feat-status">Trạng thái</th>
                 <th className="pd-th pd-th--feat-link">Chi tiết tính năng</th>
                 <th className="pd-th pd-th--act"></th>
@@ -783,7 +863,7 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
             </tbody>
           </table>
           <button className="pd-tl-add-row" onClick={() => addFeature()}>
-            <i className="ti ti-plus"/> Thêm tính năng mẹ
+            <i className="ti ti-plus"/> Thêm tính năng
           </button>
         </div>
       )}
@@ -801,9 +881,15 @@ function FeaturesTab({ proj, onUpsert, notebooks, onOpenFeature, onCreateFeature
   );
 }
 
-function FeatureRow({ feat, wbs, depth, onUpdate, onRemove, onAddChild, onPickFeature, onOpenFeature, onAddChangelog }) {
+function featInitials(name) {
+  if (!name) return '';
+  return name.trim().split(/\s+/).slice(-2).map(w => w[0].toUpperCase()).join('');
+}
+
+function FeatureRow({ feat, wbs, depth, members, onUpdate, onRemove, onAddChild, onPickFeature, onOpenFeature, onAddChangelog }) {
   const st     = FEAT_STATUS[feat.status] || FEAT_STATUS.pending;
   const indent = Math.min(depth * 20, 80);
+  const initials = featInitials(feat.assignee);
 
   return (
     <tr className={'pd-feat-tr' + (depth === 0 ? ' pd-feat-tr--parent' : '')}>
@@ -821,6 +907,32 @@ function FeatureRow({ feat, wbs, depth, onUpdate, onRemove, onAddChild, onPickFe
           />
           {feat.linkedFeature && (
             <span className="pd-feat-linked-badge">LINKED</span>
+          )}
+        </div>
+      </td>
+      <td className="pd-td pd-td--feat-assignee">
+        <div className="pd-feat-assignee-cell">
+          {initials && (
+            <span className="pd-feat-assignee-avatar">{initials}</span>
+          )}
+          {members.length > 0 ? (
+            <select
+              className="pd-feat-assignee-sel"
+              value={feat.assignee || ''}
+              onChange={e => onUpdate('assignee', e.target.value)}
+            >
+              <option value="">—</option>
+              {members.map(m => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="pd-feat-assignee-input"
+              value={feat.assignee || ''}
+              placeholder="—"
+              onChange={e => onUpdate('assignee', e.target.value)}
+            />
           )}
         </div>
       </td>
@@ -1154,16 +1266,16 @@ function DocsTab({ proj, onUpsert }) {
     return docs
       .filter(d => parentId === null ? !d.parentId : d.parentId === parentId)
       .map((doc, i) => {
-        const stt = prefix ? `${prefix}.${i + 1}` : String(i + 1);
+        const childPrefix = prefix ? `${prefix}.${i + 1}` : String(i + 1);
         return (
           <React.Fragment key={doc.id}>
             <DocRow
-              doc={doc} stt={stt} depth={depth}
+              doc={doc} depth={depth}
               onUpdate={(f, v) => updateDoc(doc.id, f, v)}
               onRemove={() => removeDoc(doc.id)}
               onAddChild={() => addDoc(doc.id)}
             />
-            {renderRows(doc.id, stt, depth + 1)}
+            {renderRows(doc.id, childPrefix, depth + 1)}
           </React.Fragment>
         );
       });
@@ -1174,7 +1286,7 @@ function DocsTab({ proj, onUpsert }) {
       <div className="pd-tl-bar">
         <div className="pd-tl-bar-left">
           <h3 className="pd-tl-title">Tài liệu dự án</h3>
-          <span className="pd-tl-live"><i className="ti ti-circle-filled"/> {docs.length} tài liệu</span>
+          <span className="pd-docs-count">{docs.length} liên kết</span>
         </div>
         <div className="pd-docs-actions">
           <div className="pd-docs-view-toggle">
@@ -1182,7 +1294,7 @@ function DocsTab({ proj, onUpsert }) {
             <button className={'pd-docs-view-btn' + (view === 'kanban' ? ' active' : '')} onClick={() => setView('kanban')} title="Kanban"><i className="ti ti-layout-columns"/></button>
           </div>
           <button className="btn-primary" onClick={() => addDoc()}>
-            <i className="ti ti-plus"/> Thêm tài liệu
+            <i className="ti ti-link"/> Thêm liên kết
           </button>
         </div>
       </div>
@@ -1190,26 +1302,27 @@ function DocsTab({ proj, onUpsert }) {
       {docs.length === 0 ? (
         <div className="pd-tl-empty">
           <i className="ti ti-file-off"/>
-          <p>Chưa có tài liệu nào. Nhấn "Thêm tài liệu" để bắt đầu.</p>
+          <p>Chưa có tài liệu nào. Nhấn "Thêm liên kết" để bắt đầu.</p>
         </div>
       ) : view === 'list' ? (
         <div className="pd-tl-wrap">
-          <table className="pd-tl-table">
+          <table className="pd-tl-table pd-docs-table">
             <thead>
               <tr>
-                <th className="pd-th pd-th--idx">STT</th>
-                <th className="pd-th pd-th--doc-name">Tên tài liệu</th>
-                <th className="pd-th pd-th--doc-link">Link</th>
-                <th className="pd-th pd-th--doc-type">Loại tài liệu</th>
-                <th className="pd-th pd-th--doc-notes">Ghi chú</th>
+                <th className="pd-th pd-th--doc-name">TÀI LIỆU</th>
+                <th className="pd-th pd-th--doc-type">LOẠI</th>
+                <th className="pd-th pd-th--doc-source">NGUỒN</th>
+                <th className="pd-th pd-th--doc-addedby">NGƯỜI THÊM</th>
+                <th className="pd-th pd-th--doc-updated">CẬP NHẬT</th>
                 <th className="pd-th pd-th--act"/>
               </tr>
             </thead>
             <tbody>{renderRows(null, '', 0)}</tbody>
           </table>
-          <button className="pd-tl-add-row" onClick={() => addDoc()}>
-            <i className="ti ti-plus"/> Thêm tài liệu
-          </button>
+          <div className="pd-docs-footer">
+            <i className="ti ti-info-circle"/>
+            Tài liệu được lưu dưới dạng <strong>liên kết</strong> — hỗ trợ phân cấp cha → con để gom tài liệu liên quan.
+          </div>
         </div>
       ) : (
         /* ── Kanban ── */
@@ -1226,29 +1339,38 @@ function DocsTab({ proj, onUpsert }) {
                 <div className="pd-docs-col-body">
                   {cards.length === 0
                     ? <div className="pd-docs-col-empty">Trống</div>
-                    : cards.map(doc => (
-                        <div key={doc.id} className="pd-docs-card">
-                          <div className="pd-docs-card-name">
-                            {doc.name || <em style={{ color: 'var(--text3)' }}>Chưa đặt tên</em>}
+                    : cards.map(doc => {
+                        const src = detectSource(doc.link);
+                        return (
+                          <div key={doc.id} className="pd-docs-card">
+                            <div className="pd-docs-card-header">
+                              <i className={'ti ' + src.icon} style={{ color: src.color, fontSize: 16 }}/>
+                              <span className="pd-docs-card-name">
+                                {doc.name || <em style={{ color: 'var(--text3)' }}>Chưa đặt tên</em>}
+                              </span>
+                            </div>
+                            {doc.link && (
+                              <a className="pd-docs-card-link" href={doc.link} target="_blank" rel="noreferrer">
+                                <i className="ti ti-external-link"/> {src.label}
+                              </a>
+                            )}
+                            <div className="pd-docs-card-meta">
+                              <span className="pd-docs-card-type-badge" style={{ color: meta.color, background: meta.bg }}>
+                                {meta.label}
+                              </span>
+                              {doc.addedBy && (
+                                <div className="pd-doc-avatar pd-doc-avatar--sm" style={{ background: avatarColor(doc.addedBy) }}>
+                                  {doc.addedBy.slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {doc.link && (
-                            <a className="pd-docs-card-link" href={doc.link} target="_blank" rel="noreferrer">
-                              <i className="ti ti-external-link"/> Mở tài liệu
-                            </a>
-                          )}
-                          {doc.notes && (
-                            <div className="pd-docs-card-notes">{doc.notes}</div>
-                          )}
-                          <span className="pd-docs-card-type-badge" style={{ color: meta.color, background: meta.bg }}>
-                            {meta.label}
-                          </span>
-                        </div>
-                      ))
+                        );
+                      })
                   }
                 </div>
                 <button className="pd-docs-col-add" onClick={() => {
-                  const d = makeDoc(null);
-                  save([...docs, { ...d, type: key }]);
+                  save([...docs, { ...makeDoc(null), type: key }]);
                 }}>
                   <i className="ti ti-plus"/> Thêm
                 </button>
@@ -1261,56 +1383,94 @@ function DocsTab({ proj, onUpsert }) {
   );
 }
 
-function DocRow({ doc, stt, depth, onUpdate, onRemove, onAddChild }) {
+function DocRow({ doc, depth, onUpdate, onRemove, onAddChild }) {
   const dt     = DOC_TYPE[doc.type] || DOC_TYPE.other;
-  const indent = Math.min(depth * 16, 64);
+  const src    = detectSource(doc.link);
+  const indent = Math.min(depth * 20, 60);
 
   return (
     <tr className={'pd-tr' + (depth > 0 ? ' pd-tr--sub' : '')}>
-      <td className="pd-td pd-td--idx">
-        <span className="pd-idx">{stt}</span>
-      </td>
-      <td className="pd-td pd-td--name">
-        <div className="pd-name-cell">
-          {depth > 0 && <span className="pd-sub-indent" style={{ width: indent + 'px' }}/>}
-          <input className="pd-cell-input pd-cell-input--name"
-                 value={doc.name}
-                 placeholder={depth === 0 ? 'Tên tài liệu...' : 'Tên mục con...'}
-                 onChange={e => onUpdate('name', e.target.value)}/>
-        </div>
-      </td>
-      <td className="pd-td pd-td--doc-link">
-        <div className="pd-grp-link-cell">
-          <input className="pd-cell-input" value={doc.link}
-                 placeholder="https://..." onChange={e => onUpdate('link', e.target.value)}/>
-          {doc.link && (
-            <a className="pd-grp-link-btn" href={doc.link} target="_blank" rel="noreferrer" title="Mở tài liệu">
-              <i className="ti ti-external-link"/>
-            </a>
-          )}
+      <td className="pd-td pd-td--doc-name">
+        <div className="pd-doc-name-cell" style={{ paddingLeft: indent }}>
+          <i className={'ti ' + src.icon + ' pd-doc-src-icon'} style={{ color: src.color }}/>
+          <div className="pd-doc-name-stack">
+            <input
+              className="pd-cell-input pd-cell-input--doc-name"
+              value={doc.name}
+              placeholder={depth === 0 ? 'Tên tài liệu...' : 'Tên mục con...'}
+              onChange={e => onUpdate('name', e.target.value)}
+            />
+            <input
+              className="pd-cell-input pd-doc-url-input"
+              value={doc.link}
+              placeholder="https://..."
+              onChange={e => onUpdate('link', e.target.value)}
+            />
+          </div>
         </div>
       </td>
       <td className="pd-td pd-td--doc-type">
-        <div className="pd-feat-status-cell">
-          <span className="pd-feat-dot" style={{ background: dt.color }}/>
-          <select className="pd-feat-status-sel" value={doc.type}
-                  onChange={e => onUpdate('type', e.target.value)}>
-            {Object.entries(DOC_TYPE).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
+        <select
+          className="pd-docs-type-sel"
+          value={doc.type}
+          onChange={e => onUpdate('type', e.target.value)}
+          style={{ color: dt.color, background: dt.bg }}
+        >
+          {Object.entries(DOC_TYPE).map(([k, v]) => (
+            <option key={k} value={k}>{v.label}</option>
+          ))}
+        </select>
+      </td>
+      <td className="pd-td pd-td--doc-source">
+        <div className="pd-doc-source">
+          <i className={'ti ' + src.icon} style={{ color: src.color }}/>
+          <span>{src.label}</span>
         </div>
       </td>
-      <td className="pd-td pd-td--doc-notes">
-        <input className="pd-cell-input" value={doc.notes}
-               placeholder="Ghi chú..." onChange={e => onUpdate('notes', e.target.value)}/>
+      <td className="pd-td pd-td--doc-addedby">
+        {doc.addedBy ? (
+          <div
+            className="pd-doc-avatar"
+            style={{ background: avatarColor(doc.addedBy) }}
+            title={doc.addedBy}
+            onClick={() => {
+              const v = prompt('Người thêm (2-3 ký tự viết tắt):', doc.addedBy);
+              if (v !== null) onUpdate('addedBy', v.slice(0, 3).toUpperCase());
+            }}
+          >
+            {doc.addedBy.slice(0, 2).toUpperCase()}
+          </div>
+        ) : (
+          <input
+            className="pd-cell-input pd-doc-addedby-input"
+            value={doc.addedBy}
+            placeholder="VD: NL"
+            maxLength={3}
+            onChange={e => onUpdate('addedBy', e.target.value.toUpperCase())}
+          />
+        )}
+      </td>
+      <td className="pd-td pd-td--doc-updated">
+        <span className="pd-doc-date">{fmtFull(doc.updatedAt)}</span>
       </td>
       <td className="pd-td pd-td--act">
         <button className="pd-act-btn" onClick={onAddChild} title="Thêm mục con">
-          <i className="ti ti-git-branch"/>
+          <i className="ti ti-plus"/>
+        </button>
+        {doc.link && (
+          <a className="pd-act-btn" href={doc.link} target="_blank" rel="noreferrer" title="Mở tài liệu">
+            <i className="ti ti-external-link"/>
+          </a>
+        )}
+        <button
+          className="pd-act-btn"
+          title="Sao chép link"
+          onClick={() => doc.link && navigator.clipboard?.writeText(doc.link)}
+        >
+          <i className="ti ti-copy"/>
         </button>
         <button className="pd-act-btn pd-act-btn--del" onClick={onRemove} title="Xóa">
-          <i className="ti ti-x"/>
+          <i className="ti ti-trash"/>
         </button>
       </td>
     </tr>
@@ -1706,9 +1866,16 @@ function NotesTab({ proj, onUpsert }) {
 }
 
 /* ── Changelog tab ── */
-function ChangelogRow({ entry, idx, features, onUpdate, onRemove }) {
-  const tm = CL_TYPES[entry.type]    || CL_TYPES.note;
+function avatarInitials(name) {
+  const parts = (name || '').trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0]?.[0] || '?').toUpperCase();
+}
+
+function ChangelogRow({ entry, features, onUpdate, onRemove }) {
+  const tm = CL_TYPES[entry.type]    || CL_TYPES.modified;
   const sm = CL_STATUS[entry.status] || CL_STATUS.draft;
+  const im = CL_IMPACT[entry.impact] || CL_IMPACT.low;
 
   function flatFeatures(list, parentId = null, depth = 0) {
     return list
@@ -1719,52 +1886,59 @@ function ChangelogRow({ entry, idx, features, onUpdate, onRemove }) {
       ]);
   }
   const flat = flatFeatures(features);
+  const initials = avatarInitials(entry.author);
 
   return (
-    <tr className="pd-tr">
-      <td className="pd-td pd-td--idx cl-td--stt">
-        <span className="pd-idx">{idx + 1}</span>
-      </td>
-      <td className="pd-td cl-td--ver">
-        <input className="pd-cell-input cl-ver-input" value={entry.version}
+    <tr className="cl-row">
+      <td className="cl-td cl-td--ver">
+        <input className="cl-cell-input cl-cell-input--ver" value={entry.version}
           onChange={e => onUpdate('version', e.target.value)} placeholder="1.0" />
       </td>
-      <td className="pd-td cl-td--date">
-        <input className="pd-cell-input pd-cell-input--date" type="date" value={entry.date}
+      <td className="cl-td cl-td--date">
+        <input className="cl-cell-input cl-cell-input--date" type="date" value={entry.date}
           onChange={e => onUpdate('date', e.target.value)} />
       </td>
-      <td className="pd-td cl-td--author">
-        <input className="pd-cell-input" value={entry.author}
-          onChange={e => onUpdate('author', e.target.value)} placeholder="Người thực hiện" />
-      </td>
-      <td className="pd-td cl-td--feat">
-        <select className="pd-cell-input cl-feat-sel" value={entry.featureId || ''}
-          onChange={e => onUpdate('featureId', e.target.value)}>
-          <option value="">— Không chọn —</option>
-          {flat.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-        </select>
-      </td>
-      <td className="pd-td cl-td--desc">
-        <input className="pd-cell-input pd-cell-input--name" value={entry.title}
-          onChange={e => onUpdate('title', e.target.value)} placeholder="Nội dung thay đổi..." />
-        <input className="pd-cell-input cl-desc-sub" value={entry.desc}
-          onChange={e => onUpdate('desc', e.target.value)} placeholder="Chi tiết (tùy chọn)" />
-      </td>
-      <td className="pd-td cl-td--type">
-        <select className="cl-badge-sel" value={entry.type}
+      <td className="cl-td cl-td--type">
+        <select className="cl-type-sel" value={entry.type}
           style={{ color: tm.color, background: tm.bg }}
           onChange={e => onUpdate('type', e.target.value)}>
           {Object.entries(CL_TYPES).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
         </select>
       </td>
-      <td className="pd-td cl-td--status">
-        <select className="cl-badge-sel" value={entry.status}
+      <td className="cl-td cl-td--cat">
+        <select className="cl-cell-input cl-cat-sel" value={entry.featureId || ''}
+          onChange={e => onUpdate('featureId', e.target.value)}>
+          <option value="">—</option>
+          {flat.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+        </select>
+      </td>
+      <td className="cl-td cl-td--desc">
+        <input className="cl-cell-input cl-cell-input--title" value={entry.title}
+          onChange={e => onUpdate('title', e.target.value)} placeholder="Nội dung thay đổi..." />
+        {entry.desc && <span className="cl-cell-sub">{entry.desc}</span>}
+      </td>
+      <td className="cl-td cl-td--author">
+        <div className="cl-author-cell">
+          <span className="cl-avatar">{initials}</span>
+          <input className="cl-cell-input" value={entry.author}
+            onChange={e => onUpdate('author', e.target.value)} placeholder="Người thực hiện" />
+        </div>
+      </td>
+      <td className="cl-td cl-td--impact">
+        <select className="cl-impact-sel" value={entry.impact || 'low'}
+          style={{ color: im.color }}
+          onChange={e => onUpdate('impact', e.target.value)}>
+          {Object.entries(CL_IMPACT).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+        </select>
+      </td>
+      <td className="cl-td cl-td--approval">
+        <select className="cl-approval-sel" value={entry.status}
           style={{ color: sm.color, background: sm.bg }}
           onChange={e => onUpdate('status', e.target.value)}>
           {Object.entries(CL_STATUS).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
         </select>
       </td>
-      <td className="pd-td pd-td--act">
+      <td className="cl-td cl-td--act">
         <button className="pd-act-btn pd-act-btn--del" onClick={onRemove} title="Xóa">
           <i className="ti ti-trash"/>
         </button>
@@ -1776,10 +1950,15 @@ function ChangelogRow({ entry, idx, features, onUpdate, onRemove }) {
 function ChangelogTab({ proj, onUpsert, onAddEntry }) {
   const changelog = proj.changelog || [];
   const features  = proj.features  || [];
-  const entries = [...changelog].sort((a, b) => b.date.localeCompare(a.date));
+  const clMeta    = proj.clMeta    || {};
+  const entries   = [...changelog].sort((a, b) => b.date.localeCompare(a.date));
+  const latest    = entries[0];
 
   function save(next) {
     onUpsert({ ...proj, changelog: next, updatedAt: new Date().toISOString().slice(0, 10) });
+  }
+  function saveMeta(meta) {
+    onUpsert({ ...proj, clMeta: meta });
   }
   function add() {
     if (onAddEntry) { onAddEntry(); return; }
@@ -1792,45 +1971,106 @@ function ChangelogTab({ proj, onUpsert, onAddEntry }) {
     if (!await showConfirm('Xóa mục lịch sử này?')) return;
     save(changelog.filter(e => e.id !== id));
   }
+  function exportCsv() {
+    const header = ['Phiên bản','Ngày','Loại thay đổi','Hạng mục','Nội dung thay đổi','Người thực hiện','Tác động','Phê duyệt'];
+    const featMap = Object.fromEntries((proj.features || []).map(f => [f.id, f.name]));
+    const rows = entries.map(e => [
+      e.version, e.date,
+      CL_TYPES[e.type]?.label   || e.type,
+      featMap[e.featureId]      || '',
+      e.title,
+      e.author,
+      CL_IMPACT[e.impact]?.label || 'Thấp',
+      CL_STATUS[e.status]?.label || e.status,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(c => `"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a   = document.createElement('a');
+    a.href    = URL.createObjectURL(new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `changelog-${proj.name || 'project'}.csv`;
+    a.click();
+  }
+
+  const currentVer  = latest?.version || '—';
+  const lastDate    = latest?.date    || null;
+  const lastUpdater = latest?.author  || '—';
+  const docName     = clMeta.docName  || proj.name || '';
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
+  }
 
   return (
     <div className="cl-wrap">
-      <div className="pd-tl-bar">
-        <div className="pd-tl-bar-left">
-          <h3 className="pd-tl-title">Lịch sử thay đổi dự án</h3>
-          {entries.length > 0 && (
-            <span className="pd-tl-live"><i className="ti ti-circle-filled"/> {entries.length} bản ghi</span>
-          )}
+      {/* ─── Header ─── */}
+      <div className="cl-header">
+        <div className="cl-header-left">
+          <h3 className="cl-main-title">
+            Bảng theo dõi thay đổi <span className="cl-main-title-sub">(Change Log)</span>
+          </h3>
+          <p className="cl-header-sub">
+            <input className="cl-doc-name-input" value={clMeta.docName || ''}
+              onChange={e => saveMeta({ ...clMeta, docName: e.target.value })}
+              placeholder={proj.name || 'Tên tài liệu'} />
+            · {entries.length} bản ghi · Bản hiện tại: v{currentVer}
+          </p>
         </div>
-        <button className="btn-primary" onClick={add}>
-          <i className="ti ti-plus"/> Thêm bản ghi
-        </button>
+        <div className="cl-header-actions">
+          <button className="cl-btn-export" onClick={exportCsv}>
+            <i className="ti ti-download"/> Xuất Excel
+          </button>
+          <button className="btn-primary" onClick={add}>
+            <i className="ti ti-plus"/> Thêm bản ghi
+          </button>
+        </div>
       </div>
 
-      <div className="cl-tl-wrap">
+      {/* ─── Document info bar ─── */}
+      <div className="cl-docinfo">
+        <div className="cl-docinfo-cell">
+          <span className="cl-docinfo-lbl">TÊN TÀI LIỆU</span>
+          <span className="cl-docinfo-val">{docName || '—'}</span>
+        </div>
+        <div className="cl-docinfo-cell">
+          <span className="cl-docinfo-lbl">PHIÊN BẢN HIỆN TẠI</span>
+          <span className="cl-docinfo-val cl-docinfo-val--ver">V{currentVer}</span>
+        </div>
+        <div className="cl-docinfo-cell">
+          <span className="cl-docinfo-lbl">CẬP NHẬT CUỐI</span>
+          <span className="cl-docinfo-val">{fmtDate(lastDate)}</span>
+        </div>
+        <div className="cl-docinfo-cell">
+          <span className="cl-docinfo-lbl">NGƯỜI CẬP NHẬT</span>
+          <span className="cl-docinfo-val">{lastUpdater}</span>
+        </div>
+      </div>
+
+      {/* ─── Table ─── */}
+      <div className="cl-table-wrap">
         {entries.length === 0 ? (
           <div className="cl-empty">
             <i className="ti ti-history cl-empty-icon"/>
             <p>Chưa có bản ghi nào.<br/>Nhấn <strong>Thêm bản ghi</strong> hoặc dùng nút <i className="ti ti-history"/> trên mỗi tính năng.</p>
           </div>
         ) : (
-          <table className="pd-tl-table">
+          <table className="cl-table">
             <thead>
               <tr>
-                <th className="pd-th cl-th--stt">#</th>
-                <th className="pd-th cl-th--ver">Phiên bản</th>
-                <th className="pd-th cl-th--date">Ngày</th>
-                <th className="pd-th cl-th--author">Người thực hiện</th>
-                <th className="pd-th cl-th--feat">Tính năng</th>
-                <th className="pd-th cl-th--desc">Nội dung thay đổi</th>
-                <th className="pd-th cl-th--type">Loại</th>
-                <th className="pd-th cl-th--status">Trạng thái</th>
-                <th className="pd-th pd-th--act"/>
+                <th className="cl-th cl-th--ver">PHIÊN BẢN</th>
+                <th className="cl-th cl-th--date">NGÀY</th>
+                <th className="cl-th cl-th--type">LOẠI THAY ĐỔI</th>
+                <th className="cl-th cl-th--cat">HẠNG MỤC</th>
+                <th className="cl-th cl-th--desc">NỘI DUNG THAY ĐỔI</th>
+                <th className="cl-th cl-th--author">NGƯỜI THỰC HIỆN</th>
+                <th className="cl-th cl-th--impact">TÁC ĐỘNG</th>
+                <th className="cl-th cl-th--approval">PHÊ DUYỆT</th>
+                <th className="cl-th cl-th--act"/>
               </tr>
             </thead>
             <tbody>
-              {entries.map((e, i) => (
-                <ChangelogRow key={e.id} entry={e} idx={i} features={features}
+              {entries.map(e => (
+                <ChangelogRow key={e.id} entry={e} features={features}
                   onUpdate={(field, val) => upd(e.id, field, val)}
                   onRemove={() => del(e.id)} />
               ))}
@@ -1840,6 +2080,33 @@ function ChangelogTab({ proj, onUpsert, onAddEntry }) {
         <button className="pd-tl-add-row" onClick={add}>
           <i className="ti ti-plus"/> Thêm bản ghi
         </button>
+      </div>
+
+      {/* ─── Footer signatures ─── */}
+      <div className="cl-footer">
+        <div className="cl-footer-cell">
+          <span className="cl-footer-lbl">TÁC GIẢ</span>
+          <div className="cl-footer-sig-line"/>
+          <input className="cl-footer-input" value={clMeta.author || ''}
+            onChange={e => saveMeta({ ...clMeta, author: e.target.value })}
+            placeholder="Tên tác giả" />
+        </div>
+        <div className="cl-footer-cell">
+          <span className="cl-footer-lbl">PHÊ DUYỆT</span>
+          <div className="cl-footer-sig-line"/>
+          <input className="cl-footer-input" value={clMeta.approver || ''}
+            onChange={e => saveMeta({ ...clMeta, approver: e.target.value })}
+            placeholder="Người phê duyệt" />
+        </div>
+        <div className="cl-footer-cell">
+          <span className="cl-footer-lbl">THAM CHIẾU</span>
+          <input className="cl-footer-input cl-footer-input--ref" value={clMeta.refDoc || ''}
+            onChange={e => saveMeta({ ...clMeta, refDoc: e.target.value })}
+            placeholder="Tên tài liệu (vd: SRS-2026.docx)" />
+          <input className="cl-footer-input cl-footer-input--fmt" value={clMeta.refFormat || ''}
+            onChange={e => saveMeta({ ...clMeta, refFormat: e.target.value })}
+            placeholder="Format / Tiêu chuẩn (vd: IEEE 830)" />
+        </div>
       </div>
     </div>
   );

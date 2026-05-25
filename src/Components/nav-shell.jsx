@@ -8,12 +8,25 @@ const NAV_ITEMS = [
   { key: 'experience', icon: 'ti-award',              label: 'Kinh nghiệm' },
 ];
 
+const SIDEBAR_MIN      = 56;
+const SIDEBAR_MAX      = 320;
+const EXPAND_THRESHOLD = 120;
+const SIDEBAR_LS_KEY   = 'nb_sidebar_w';
+
 export function NavShell({ navSection, setNavSection, children }) {
   const { user, logout } = useAuth();
-  const [expanded,   setExpanded]   = useState(false);
+  const [sidebarW,   setSidebarW]   = useState(() => {
+    const s = localStorage.getItem(SIDEBAR_LS_KEY);
+    const w = s ? Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, parseInt(s))) : SIDEBAR_MIN;
+    document.documentElement.style.setProperty('--nb-sidebar-w', (w + 4) + 'px');
+    return w;
+  });
+  const [lastExpW,   setLastExpW]   = useState(200);
   const [showLogout, setShowLogout] = useState(false);
   const [popPos,     setPopPos]     = useState(null);
 
+  const expanded      = sidebarW >= EXPAND_THRESHOLD;
+  const sidebarRef    = useRef(null);
   const avatarMenuRef = useRef(null);
   const avatarBtnRef  = useRef(null);
 
@@ -24,19 +37,50 @@ export function NavShell({ navSection, setNavSection, children }) {
 
   const active = NAV_ITEMS.find(i => i.key === navSection);
 
-  /* Close on outside click */
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_LS_KEY, sidebarW);
+    document.documentElement.style.setProperty('--nb-sidebar-w', (sidebarW + 4) + 'px');
+  }, [sidebarW]);
+
+  /* Close logout popup on outside click */
   useEffect(() => {
     if (!showLogout) return;
     function handler(e) {
-      if (
-        avatarMenuRef.current && !avatarMenuRef.current.contains(e.target)
-      ) {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target))
         setShowLogout(false);
-      }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showLogout]);
+
+  function toggleExpand() {
+    if (expanded) {
+      setLastExpW(sidebarW);
+      setSidebarW(SIDEBAR_MIN);
+    } else {
+      setSidebarW(lastExpW >= EXPAND_THRESHOLD ? lastExpW : 200);
+    }
+  }
+
+  function startResize(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarW;
+
+    if (sidebarRef.current) sidebarRef.current.style.transition = 'none';
+
+    function onMove(ev) {
+      const newW = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startW + ev.clientX - startX));
+      setSidebarW(newW);
+    }
+    function onUp() {
+      if (sidebarRef.current) sidebarRef.current.style.transition = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
 
   function handleAvatarClick() {
     if (!showLogout && avatarBtnRef.current) {
@@ -50,9 +94,11 @@ export function NavShell({ navSection, setNavSection, children }) {
     <div className="nav-root">
 
       {/* ── Sidebar ── */}
-      <aside className={'nav-sidebar' + (expanded ? ' nav-sidebar--exp' : '')}>
+      <aside ref={sidebarRef}
+             className={'nav-sidebar' + (expanded ? ' nav-sidebar--exp' : '')}
+             style={{ width: sidebarW + 'px' }}>
 
-        {/* Top: logo + company + expand/collapse */}
+        {/* Top: logo + expand/collapse */}
         <div className="nav-sidebar-top">
           <div className="nav-logo-wrap">
             <div className="nav-logo-icon">
@@ -66,7 +112,7 @@ export function NavShell({ navSection, setNavSection, children }) {
             )}
           </div>
           <button className="nav-expand-btn"
-                  onClick={() => setExpanded(e => !e)}
+                  onClick={toggleExpand}
                   title={expanded ? 'Thu gọn' : 'Mở rộng'}>
             <i className={'ti ' + (expanded ? 'ti-chevrons-left' : 'ti-chevrons-right')}/>
           </button>
@@ -107,7 +153,6 @@ export function NavShell({ navSection, setNavSection, children }) {
               )}
             </button>
 
-            {/* Popup — fixed so it escapes overflow:hidden on sidebar */}
             {showLogout && popPos && (
               <div className="nav-logout-pop"
                    style={{ position: 'fixed', left: popPos.left, bottom: popPos.bottom }}>
@@ -123,6 +168,9 @@ export function NavShell({ navSection, setNavSection, children }) {
           </div>
         </div>
       </aside>
+
+      {/* ── Resize handle ── */}
+      <div className="nav-resize-handle" onMouseDown={startResize}/>
 
       {/* ── Main area ── */}
       <div className="nav-main" data-section={navSection}>

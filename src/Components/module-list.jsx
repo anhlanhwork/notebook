@@ -28,6 +28,7 @@ const PRESET_COLORS = [
 function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
   const [query,        setQuery]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [view,         setView]        = useState("grid");
   const [modalOpen,    setModalOpen]   = useState(false);
   const [shareItem,    setShareItem]   = useState(null);
   const [editItem,     setEditItem]    = useState(null);
@@ -142,117 +143,199 @@ function ModuleListScreen({ notebook, setNotebook, onOpen, onBack }) {
           </div>
 
           <div className="ml-toolbar">
-            <div className="ml-search">
-              <i className="ti ti-search"></i>
-              <input
-                placeholder="Tìm module, technical name, danh mục..."
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-              />
-              {query && <button onClick={() => setQuery("")}><i className="ti ti-x"></i></button>}
+            <div className="ml-toolbar-left">
+              <div className="ml-search">
+                <i className="ti ti-search"></i>
+                <input
+                  placeholder="Tìm module, technical name, danh mục..."
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                />
+                {query && <button onClick={() => setQuery("")}><i className="ti ti-x"></i></button>}
+              </div>
+              <div className="ml-filters">
+                {[
+                  ["all",      "Tất cả"],
+                  ["studying", "Đang ng/c"],
+                  ["done",     "Hoàn thành"],
+                  ["pending",  "Chưa bắt đầu"]
+                ].map(([k, l]) => (
+                  <button key={k}
+                          className={"ml-filter" + (statusFilter === k ? " active" : "")}
+                          onClick={() => setStatusFilter(k)}>
+                    {l}
+                    <span className="ml-filter-count">{counts[k]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="ml-filters">
-              {[
-                ["all",      "Tất cả"],
-                ["studying", "Đang ng/c"],
-                ["done",     "Hoàn thành"],
-                ["pending",  "Chưa bắt đầu"]
-              ].map(([k, l]) => (
-                <button key={k}
-                        className={"ml-filter" + (statusFilter === k ? " active" : "")}
-                        onClick={() => setStatusFilter(k)}>
-                  {l}
-                  <span className="ml-filter-count">{counts[k]}</span>
-                </button>
-              ))}
+            <div className="clt-view-toggle">
+              <button className={'clt-view-btn' + (view === 'grid' ? ' active' : '')} onClick={() => setView('grid')} title="Dạng lưới">
+                <i className="ti ti-layout-grid"/>
+              </button>
+              <button className={'clt-view-btn' + (view === 'list' ? ' active' : '')} onClick={() => setView('list')} title="Danh sách">
+                <i className="ti ti-menu-2"/>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="ml-body">
-        <div className="ml-grid">
-        {filtered.map(m => {
-          const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
-          const st   = STATUS_META[m.status] || STATUS_META.pending;
-          const featCount = m.features?.length || 0;
-          const flowCount = (m.mainFlows?.length || 0) +
-                            (m.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
-          return (
-            <div key={m.id} className="ml-card" onClick={() => onOpen(m.id)}>
-              <div
-                className="ml-card-art"
-                style={{ background: `linear-gradient(135deg, ${m.color} 0%, ${m.color}cc 100%)` }}
-              >
-                <i className={"ti " + icon}></i>
-                <div className="ml-card-art-deco"></div>
-                {m.overview?.category && m.overview.category !== "—" && (
-                  <span className="ml-card-art-cat">{m.overview.category.toUpperCase()}</span>
-                )}
-                <span className="ml-card-art-status" style={{ background: st.bg, color: st.color }}>
-                  {st.label}
-                </span>
+
+        {/* ── Grid view ── */}
+        {view === 'grid' && (
+          <div className="ml-grid">
+          {filtered.map(m => {
+            const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
+            const st   = STATUS_META[m.status] || STATUS_META.pending;
+            const featCount = m.features?.length || 0;
+            const flowCount = (m.mainFlows?.length || 0) +
+                              (m.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
+            return (
+              <div key={m.id} className="ml-card" onClick={() => onOpen(m.id)}>
+                <div
+                  className="ml-card-art"
+                  style={{ background: `linear-gradient(135deg, ${m.color} 0%, ${m.color}cc 100%)` }}
+                >
+                  <i className={"ti " + icon}></i>
+                  <div className="ml-card-art-deco"></div>
+                  {m.overview?.category && m.overview.category !== "—" && (
+                    <span className="ml-card-art-cat">{m.overview.category.toUpperCase()}</span>
+                  )}
+                  <span className="ml-card-art-status" style={{ background: st.bg, color: st.color }}>
+                    {st.label}
+                  </span>
+                </div>
+
+                <div className="ml-card-body">
+                  <div className="ml-card-head">
+                    <div className="ml-card-name-wrap">
+                      <div className="ml-card-name">{m.name}</div>
+                      <code className="ml-card-tech">{m.tech}</code>
+                    </div>
+                    <div className="ml-card-head-actions">
+                      <button
+                        className={`ml-card-share${m.shareRole && m.shareRole !== "private" ? " shared" : ""}`}
+                        onClick={e => { e.stopPropagation(); setShareItem(m); }}
+                        title="Chia sẻ module"
+                      >
+                        <i className={`ti ${m.shareRole === "viewer" ? "ti-eye" : m.shareRole === "editor" ? "ti-users" : "ti-share"}`}></i>
+                      </button>
+                      <button className="ml-card-edit" onClick={e => openEdit(m, e)} title="Chỉnh sửa module">
+                        <i className="ti ti-edit"></i>
+                      </button>
+                      <button className="ml-card-del" onClick={(e) => deleteModule(m.id, e)} title="Xóa">
+                        <i className="ti ti-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="ml-card-purpose">
+                    {m.overview?.purpose || <span className="ml-card-empty">Chưa có mô tả</span>}
+                  </div>
+
+                  <div className="ml-card-stats">
+                    <div className="ml-card-stat">
+                      <div className="ml-stat-label"><i className="ti ti-puzzle"></i> Tính năng</div>
+                      <div className="ml-stat-val"><b>{featCount}</b></div>
+                    </div>
+                    <div className="ml-card-stat">
+                      <div className="ml-stat-label"><i className="ti ti-git-branch"></i> Luồng</div>
+                      <div className="ml-stat-val"><b>{flowCount}</b></div>
+                    </div>
+                    <div className="ml-card-stat">
+                      <div className="ml-stat-label"><i className="ti ti-calendar"></i> Cập nhật</div>
+                      <div className="ml-stat-val">{m.updatedAt}</div>
+                    </div>
+                  </div>
+
+                  <div className="ml-card-cta">
+                    <span>Mở module</span>
+                    <i className="ti ti-arrow-right"></i>
+                  </div>
+                </div>
               </div>
+            );
+          })}
 
-              <div className="ml-card-body">
-                <div className="ml-card-head">
-                  <div className="ml-card-name-wrap">
-                    <div className="ml-card-name">{m.name}</div>
-                    <code className="ml-card-tech">{m.tech}</code>
-                  </div>
-                  <div className="ml-card-head-actions">
-                    <button
-                      className={`ml-card-share${m.shareRole && m.shareRole !== "private" ? " shared" : ""}`}
-                      onClick={e => { e.stopPropagation(); setShareItem(m); }}
-                      title="Chia sẻ module"
-                    >
-                      <i className={`ti ${m.shareRole === "viewer" ? "ti-eye" : m.shareRole === "editor" ? "ti-users" : "ti-share"}`}></i>
-                    </button>
-                    <button className="ml-card-edit" onClick={e => openEdit(m, e)} title="Chỉnh sửa module">
-                      <i className="ti ti-edit"></i>
-                    </button>
-                    <button className="ml-card-del" onClick={(e) => deleteModule(m.id, e)} title="Xóa">
-                      <i className="ti ti-trash"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="ml-card-purpose">
-                  {m.overview?.purpose || <span className="ml-card-empty">Chưa có mô tả</span>}
-                </div>
-
-                <div className="ml-card-stats">
-                  <div className="ml-card-stat">
-                    <div className="ml-stat-label"><i className="ti ti-puzzle"></i> Tính năng</div>
-                    <div className="ml-stat-val"><b>{featCount}</b></div>
-                  </div>
-                  <div className="ml-card-stat">
-                    <div className="ml-stat-label"><i className="ti ti-git-branch"></i> Luồng</div>
-                    <div className="ml-stat-val"><b>{flowCount}</b></div>
-                  </div>
-                  <div className="ml-card-stat">
-                    <div className="ml-stat-label"><i className="ti ti-calendar"></i> Cập nhật</div>
-                    <div className="ml-stat-val">{m.updatedAt}</div>
-                  </div>
-                </div>
-
-                <div className="ml-card-cta">
-                  <span>Mở module</span>
-                  <i className="ti ti-arrow-right"></i>
-                </div>
-              </div>
+          <div className="ml-card ml-card-add" onClick={openAddModal}>
+            <div className="ml-add-inner">
+              <i className="ti ti-plus"></i>
+              <div className="ml-add-label">Thêm module mới</div>
+              <div className="ml-add-sub">Bắt đầu ghi chép một module Odoo mới</div>
             </div>
-          );
-        })}
-
-        <div className="ml-card ml-card-add" onClick={openAddModal}>
-          <div className="ml-add-inner">
-            <i className="ti ti-plus"></i>
-            <div className="ml-add-label">Thêm module mới</div>
-            <div className="ml-add-sub">Bắt đầu ghi chép một module Odoo mới</div>
           </div>
-        </div>
-      </div>
+          </div>
+        )}
+
+        {/* ── List view ── */}
+        {view === 'list' && (
+          <div className="ml-list">
+            <div className="ml-list-head">
+              <div className="ml-lh-col ml-lc-module">Module</div>
+              <div className="ml-lh-col ml-lc-cat">Danh mục</div>
+              <div className="ml-lh-col ml-lc-feat">Tính năng</div>
+              <div className="ml-lh-col ml-lc-flow">Luồng</div>
+              <div className="ml-lh-col ml-lc-status">Trạng thái</div>
+              <div className="ml-lh-col ml-lc-date">Cập nhật</div>
+              <div className="ml-lc-end"/>
+            </div>
+
+            {filtered.length === 0 && (
+              <div className="clt-empty">
+                <i className="ti ti-cube-off"/>
+                <p>Không tìm thấy module nào.</p>
+              </div>
+            )}
+
+            {filtered.map(m => {
+              const icon = MODULE_ICONS[m.tech] || MODULE_ICONS.default;
+              const st   = STATUS_META[m.status] || STATUS_META.pending;
+              const featCount = m.features?.length || 0;
+              const flowCount = (m.mainFlows?.length || 0) +
+                                (m.features?.reduce((s, f) => s + (f.flows?.length || 0), 0) || 0);
+              const cat = m.overview?.category && m.overview.category !== '—' ? m.overview.category : null;
+              return (
+                <div key={m.id} className="ml-lrow" onClick={() => onOpen(m.id)}>
+                  <div className="ml-lc-module ml-lrow-module">
+                    <div className="ml-lrow-icon" style={{ background: m.color }}>
+                      <i className={'ti ' + icon}/>
+                    </div>
+                    <div>
+                      <div className="ml-lrow-name">{m.name}</div>
+                      <div className="ml-lrow-tech">{m.tech}</div>
+                    </div>
+                  </div>
+                  <div className="ml-lc-cat ml-lrow-cat">
+                    {cat || <span className="ml-dash">—</span>}
+                  </div>
+                  <div className="ml-lc-feat ml-lrow-count">
+                    <i className="ti ti-puzzle"/><b>{featCount}</b>
+                  </div>
+                  <div className="ml-lc-flow ml-lrow-count">
+                    <i className="ti ti-git-branch"/><b>{flowCount}</b>
+                  </div>
+                  <div className="ml-lc-status">
+                    <span className="ml-lrow-badge" style={{ color: st.color, background: st.bg }}>
+                      {st.label}
+                    </span>
+                  </div>
+                  <div className="ml-lc-date ml-lrow-date">
+                    {m.updatedAt || <span className="ml-dash">—</span>}
+                  </div>
+                  <i className="ti ti-chevron-right ml-lrow-chev"/>
+                </div>
+              );
+            })}
+
+            <div className="ml-lrow-add" onClick={openAddModal}>
+              <i className="ti ti-plus"/>
+              Thêm module mới
+            </div>
+          </div>
+        )}
+
       </div>
 
       {shareItem && (

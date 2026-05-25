@@ -34,6 +34,14 @@ function Sidebar({ mod, selection, onSelect, onAddFeature, onRenameFeature, onDe
           <i className="ti ti-git-branch"></i>
           <span>Luồng chính</span>
         </button>
+        <button
+          className={"sb-item" + (selection.type === "featurelist" ? " active" : "")}
+          onClick={() => onSelect({ type: "featurelist" })}
+        >
+          <i className="ti ti-list-check"></i>
+          <span>Danh sách tính năng</span>
+          <span className="sb-chip">{mod.features.length}</span>
+        </button>
 
         <div className="sb-section-lbl sb-section-lbl-row">
           <span>Tính năng</span>

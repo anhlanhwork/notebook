@@ -15,7 +15,7 @@ const NOTEBOOK_ICONS = [
   "ti-flag",           "ti-link",        "ti-cpu",       "ti-shield",
 ];
 
-function HomeScreen({ data, setData, onOpen }) {
+function HomeScreen({ data, setData, onOpen, onOpenAllFeatures }) {
 
   const [query,     setQuery]  = useState("");
   const [view,      setView]   = useState("grid");
@@ -131,6 +131,16 @@ function HomeScreen({ data, setData, onOpen }) {
 
       {/* ── Body ── */}
       <div className="home-body">
+        {onOpenAllFeatures && (
+          <button className="af-home-shortcut" onClick={onOpenAllFeatures}>
+            <div className="af-shortcut-icon"><i className="ti ti-list-check"/></div>
+            <div className="af-shortcut-text">
+              <div className="af-shortcut-title">Tổng hợp tính năng</div>
+              <div className="af-shortcut-sub">Xem toàn bộ tính năng từ tất cả các sổ tay và module</div>
+            </div>
+            <i className="ti ti-chevron-right" style={{ color: 'var(--text3)', fontSize: 16 }}/>
+          </button>
+        )}
         <div className="home-toolbar">
           <div className="home-search ml-search">
             <i className="ti ti-search"></i>

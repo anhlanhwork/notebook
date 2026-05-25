@@ -1143,6 +1143,260 @@ function ChangelogRow({ entry, idx, features, onUpdate, onRemove }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════
+   FEATURE LIST PANE — table of all features + inline detail
+   ══════════════════════════════════════════════════════════════ */
+const FL_CHIPS = [
+  { key: 'models',       icon: 'ti-table',         get: f => f.models?.cards?.length || 0 },
+  { key: 'flows',        icon: 'ti-git-branch',     get: f => f.flows?.length || 0 },
+  { key: 'detailBlocks', icon: 'ti-list-details',   get: f => f.detailBlocks?.length || 0 },
+  { key: 'integrations', icon: 'ti-plug-connected', get: f => f.integrations?.length || 0 },
+  { key: 'cases',        icon: 'ti-bug',            get: f => f.cases?.length || 0 },
+];
+
+function FeatureListPane({ mod, setMod, accent }) {
+  const [selId,     setSelId]     = useState(null);
+  const [collapsed, setCollapsed] = useState(new Set());
+
+  const selFeat    = selId ? mod.features.find(f => f.id === selId) : null;
+  const rootFeats  = mod.features.filter(f => !f.parentId);
+  const childrenOf = (pid) => mod.features.filter(f => f.parentId === pid);
+  const totalKids  = mod.features.length - rootFeats.length;
+
+  function updateFeat(id, updated) {
+    setMod({ ...mod, features: mod.features.map(x => x.id === id ? updated : x) });
+  }
+
+  function toggleCollapse(id, e) {
+    e.stopPropagation();
+    setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  async function addFeat() {
+    const name = await showPrompt("Tên tính năng cha mới:", "Tính năng mới");
+    if (!name) return;
+    const id = 'f_' + Math.random().toString(36).slice(2, 6);
+    setMod({ ...mod, features: [...mod.features, { id, name, parentId: null, desc: '', models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: '' }] });
+    setSelId(id);
+  }
+
+  async function addChildFeat(parentId, e) {
+    e?.stopPropagation();
+    const parent = mod.features.find(x => x.id === parentId);
+    const name = await showPrompt(`Tính năng con của "${parent?.name}":`, "Tính năng con");
+    if (!name) return;
+    const id = 'f_' + Math.random().toString(36).slice(2, 6);
+    const nf = { id, name, parentId, desc: '', models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: '' };
+    /* Insert right after the last child of this parent */
+    const feats = [...mod.features];
+    let ins = feats.findIndex(x => x.id === parentId);
+    for (let i = ins + 1; i < feats.length; i++) {
+      if (feats[i].parentId === parentId) ins = i; else if (!feats[i].parentId) break;
+    }
+    feats.splice(ins + 1, 0, nf);
+    setMod({ ...mod, features: feats });
+    setSelId(id);
+    setCollapsed(prev => { const n = new Set(prev); n.delete(parentId); return n; });
+  }
+
+  async function renameFeat(id, e) {
+    e?.stopPropagation();
+    const f = mod.features.find(x => x.id === id);
+    const name = await showPrompt("Đổi tên:", f.name);
+    if (name) setMod({ ...mod, features: mod.features.map(x => x.id === id ? { ...x, name } : x) });
+  }
+
+  async function deleteFeat(id, e) {
+    e?.stopPropagation();
+    const f    = mod.features.find(x => x.id === id);
+    const kids = mod.features.filter(x => x.parentId === id);
+    const msg  = kids.length > 0 ? `Xóa "${f.name}" và ${kids.length} tính năng con?` : `Xóa "${f.name}"?`;
+    if (!await showConfirm(msg)) return;
+    const gone = new Set([id, ...kids.map(k => k.id)]);
+    setMod({ ...mod, features: mod.features.filter(x => !gone.has(x.id)) });
+    if (gone.has(selId)) setSelId(null);
+  }
+
+  function moveUp(id, e) {
+    e?.stopPropagation();
+    const feat = mod.features.find(x => x.id === id);
+    if (!feat) return;
+    if (feat.parentId) {
+      const kids = childrenOf(feat.parentId); const si = kids.findIndex(x => x.id === id);
+      if (si === 0) return;
+      const nk = [...kids]; [nk[si - 1], nk[si]] = [nk[si], nk[si - 1]];
+      const kidIds = new Set(nk.map(x => x.id)); let q = [...nk];
+      setMod({ ...mod, features: mod.features.map(x => kidIds.has(x.id) ? q.shift() : x) });
+    } else {
+      const pi = rootFeats.findIndex(x => x.id === id); if (pi === 0) return;
+      const np = [...rootFeats]; [np[pi - 1], np[pi]] = [np[pi], np[pi - 1]];
+      setMod({ ...mod, features: np.flatMap(p => [p, ...childrenOf(p.id)]) });
+    }
+  }
+
+  function moveDown(id, e) {
+    e?.stopPropagation();
+    const feat = mod.features.find(x => x.id === id);
+    if (!feat) return;
+    if (feat.parentId) {
+      const kids = childrenOf(feat.parentId); const si = kids.findIndex(x => x.id === id);
+      if (si === kids.length - 1) return;
+      const nk = [...kids]; [nk[si], nk[si + 1]] = [nk[si + 1], nk[si]];
+      const kidIds = new Set(nk.map(x => x.id)); let q = [...nk];
+      setMod({ ...mod, features: mod.features.map(x => kidIds.has(x.id) ? q.shift() : x) });
+    } else {
+      const pi = rootFeats.findIndex(x => x.id === id); if (pi === rootFeats.length - 1) return;
+      const np = [...rootFeats]; [np[pi], np[pi + 1]] = [np[pi + 1], np[pi]];
+      setMod({ ...mod, features: np.flatMap(p => [p, ...childrenOf(p.id)]) });
+    }
+  }
+
+  /* Build display rows: sequential numbering, parent + children blocks */
+  const rows = [];
+  let seq = 0;
+  for (const parent of rootFeats) {
+    seq++;
+    const kids      = childrenOf(parent.id);
+    const isColl    = collapsed.has(parent.id);
+    rows.push({ feat: parent, isChild: false, num: seq, kidCount: kids.length, isColl });
+    if (!isColl) {
+      kids.forEach(child => { seq++; rows.push({ feat: child, isChild: true, num: seq, kidCount: 0, isColl: false }); });
+    }
+  }
+
+  return (
+    <div className={'fl-pane' + (selFeat ? ' fl-has-detail' : '')}>
+
+      {/* ── Table section ── */}
+      <div className="fl-table-section">
+
+        {/* Subheader */}
+        <div className="fl-subhead">
+          <span className="fl-subhead-count">
+            <i className="ti ti-list-details" style={{ fontSize: 14, marginRight: 6, color: 'var(--text3)' }}/>
+            <b>{rootFeats.length}</b> tính năng cha
+            {totalKids > 0 && <> · <b>{totalKids}</b> tính năng con</>}
+          </span>
+          <button className="btn-primary btn-sm" onClick={addFeat}>
+            <i className="ti ti-plus"/> Thêm tính năng cha
+          </button>
+        </div>
+
+        {/* Card */}
+        <div className="fl-card">
+          {/* Header */}
+          <div className="fl-thead">
+            <div className="fl-tc fl-tc-num">#</div>
+            <div className="fl-tc fl-tc-name">Tên tính năng</div>
+            <div className="fl-tc fl-tc-desc">Mô tả</div>
+            <div className="fl-tc fl-tc-nd">Nội dung</div>
+            <div className="fl-tc fl-tc-acts"/>
+          </div>
+
+          {/* Rows */}
+          {rows.length === 0 ? (
+            <div className="fl-empty">
+              <i className="ti ti-puzzle-off"/>
+              <p>Chưa có tính năng nào. <button className="fl-empty-add" onClick={addFeat}>Thêm ngay</button></p>
+            </div>
+          ) : rows.map(({ feat: f, isChild, num, kidCount, isColl }) => (
+            <div
+              key={f.id}
+              className={['fl-row', isChild ? 'fl-row-child' : 'fl-row-parent', selId === f.id ? 'fl-row-sel' : ''].join(' ').trim()}
+              onClick={() => setSelId(prev => prev === f.id ? null : f.id)}
+            >
+              {/* # */}
+              <div className="fl-tc fl-tc-num fl-row-num">{num}</div>
+
+              {/* Name */}
+              <div className="fl-tc fl-tc-name fl-row-name">
+                {!isChild ? (
+                  <>
+                    <button
+                      className={'fl-chevron-btn' + (kidCount === 0 ? ' fl-chevron-invis' : '')}
+                      onClick={e => kidCount > 0 && toggleCollapse(f.id, e)}
+                    >
+                      <i className={`ti ${isColl ? 'ti-chevron-right' : 'ti-chevron-down'}`}/>
+                    </button>
+                    <span className="fl-dot fl-dot-filled"/>
+                    <span className="fl-name-text">{f.name}</span>
+                    <span className={'fl-con-chip' + (kidCount === 0 ? ' fl-con-zero' : '')}>{kidCount}con</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="fl-child-indent"/>
+                    <span className="fl-child-dash">—</span>
+                    <span className="fl-dot fl-dot-hollow"/>
+                    <span className="fl-name-text">{f.name}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Mô tả */}
+              <div className="fl-tc fl-tc-desc fl-row-desc">
+                {f.desc || <span className="fl-row-empty">—</span>}
+              </div>
+
+              {/* Nội dung chips */}
+              <div className="fl-tc fl-tc-nd fl-row-nd">
+                {FL_CHIPS.map(c => (
+                  <span key={c.key} className="fl-nd-chip">
+                    <i className={`ti ${c.icon}`}/>{c.get(f)}
+                  </span>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="fl-tc fl-tc-acts" onClick={e => e.stopPropagation()}>
+                <button
+                  className="fl-act-btn fl-act-add"
+                  onClick={e => addChildFeat(isChild ? f.parentId : f.id, e)}
+                  title="Thêm con"
+                ><i className="ti ti-plus"/></button>
+                <button className="fl-act-btn" onClick={e => renameFeat(f.id, e)} title="Đổi tên"><i className="ti ti-edit"/></button>
+                <button className="fl-act-btn" onClick={e => moveUp(f.id, e)}   title="Lên trên"><i className="ti ti-arrow-up"/></button>
+                <button className="fl-act-btn" onClick={e => moveDown(f.id, e)} title="Xuống dưới"><i className="ti ti-arrow-down"/></button>
+                <button className="fl-act-btn fl-act-del" onClick={e => deleteFeat(f.id, e)} title="Xóa"><i className="ti ti-trash"/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Detail panel ── */}
+      {selFeat && (
+        <div className="fl-detail">
+          <div className="fl-detail-hd">
+            <div className="fl-detail-hd-left">
+              <div className="fl-detail-eyebrow">
+                {selFeat.parentId
+                  ? `CON CỦA: ${mod.features.find(x => x.id === selFeat.parentId)?.name || ''}`
+                  : 'CHI TIẾT TÍNH NĂNG ĐÃ CHỌN'}
+              </div>
+              <h3 className="fl-detail-title">{selFeat.name}</h3>
+              {selFeat.desc && <p className="fl-detail-subdesc">{selFeat.desc}</p>}
+            </div>
+            <div className="fl-detail-btns">
+              <button className="btn-ghost btn-sm" onClick={e => renameFeat(selFeat.id, e)}>
+                <i className="ti ti-edit"/> Đổi tên
+              </button>
+              {!selFeat.parentId && (
+                <button className="btn-ghost btn-sm" onClick={e => addChildFeat(selFeat.id, e)}>
+                  <i className="ti ti-plus"/> Thêm con
+                </button>
+              )}
+              <button className="btn-ghost btn-sm" onClick={() => setSelId(null)} title="Đóng">
+                <i className="ti ti-x"/>
+              </button>
+            </div>
+          </div>
+          <FeaturePane feature={selFeat} setFeature={nv => updateFeat(selFeat.id, nv)} accent={accent} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChangelogPane({ mod, setMod }) {
   const entries  = [...(mod.changelog || [])].sort((a, b) => b.date.localeCompare(a.date));
   const features = mod.features || [];
@@ -1196,10 +1450,11 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
   const f = selection.type === "feature" ? mod.features.find(x => x.id === selection.featId) : null;
 
   const headerTitle = (() => {
-    if (selection.type === "overview")   return "Tổng quan module";
-    if (selection.type === "mainflow")   return "Luồng chính";
-    if (selection.type === "feature")    return f ? f.name : "—";
-    if (selection.type === "changelog")  return "Lịch sử thay đổi";
+    if (selection.type === "overview")     return "Tổng quan module";
+    if (selection.type === "mainflow")     return "Luồng chính";
+    if (selection.type === "featurelist")  return "Danh sách tính năng";
+    if (selection.type === "feature")      return f ? f.name : "—";
+    if (selection.type === "changelog")    return "Lịch sử thay đổi";
     return "";
   })();
 
@@ -1218,7 +1473,7 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
       <div className="ed-head">
         {returnContext && (
           <button className="ed-return-ctx-btn" onClick={returnContext.onClick}>
-            <i className="ti ti-arrow-left"/> Dự án: {returnContext.label}
+            <i className="ti ti-arrow-left"/> {returnContext.label}
           </button>
         )}
         <Breadcrumb items={bcrumb} />
@@ -1243,6 +1498,9 @@ export function Editor({ mod, setMod, selection, accent, onSave, saveState, onBa
             setFeature={(nv) => updateFeature(f.id, nv)}
             accent={accent}
           />
+        )}
+        {selection.type === "featurelist" && (
+          <FeatureListPane mod={mod} setMod={setMod} accent={accent} />
         )}
         {selection.type === "changelog" && (
           <ChangelogPane mod={mod} setMod={setMod} />

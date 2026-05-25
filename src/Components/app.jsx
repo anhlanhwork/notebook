@@ -17,6 +17,7 @@ import { DashboardScreen } from './dashboard.jsx';
 import { ProjectsScreen } from './projects.jsx';
 import { ExperienceScreen } from './experience.jsx';
 import { DialogHost, showConfirm, showPrompt } from './dialog.jsx';
+import AllFeaturesScreen from './all-features.jsx';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "light",
@@ -85,7 +86,8 @@ function App() {
   const [selection,  setSelection]  = useState({ type: "overview" });
   const [saveState,  setSaveState]  = useState({ kind: "saved", at: nowHHMM() });
   const [toast,      setToast]      = useState(null);
-  const [projReturnCtx, setProjReturnCtx] = useState(null); // { projId, client }
+  const [projReturnCtx,      setProjReturnCtx]      = useState(null); // { projId, client }
+  const [allFeatReturnActive, setAllFeatReturnActive] = useState(false);
 
   /* Refs to avoid stale-closure issues in async callbacks */
   const dataRef           = useRef(data);
@@ -346,6 +348,28 @@ function App() {
     history.pushState(null, "", "/knowledge");
     setActiveNbId(null); setActiveModId(null); setScreen("home");
   }
+  function openAllFeatures() {
+    setScreen("all-features");
+  }
+  function openFeatureFromAllFeatures(moduleId, featureId) {
+    const nb  = data.notebooks.find(nb => nb.modules?.some(m => m.id === moduleId));
+    if (!nb) return;
+    const mod     = nb.modules.find(m => m.id === moduleId);
+    const modSlug = toSlug(mod?.name || '') + '-' + moduleId;
+    history.pushState(null, '', '/module/' + modSlug);
+    setNavSection('knowledge');
+    setActiveNbId(nb.id);
+    setActiveModId(moduleId);
+    setScreen('handbook');
+    setSelection({ type: 'feature', featId: featureId });
+    setAllFeatReturnActive(true);
+  }
+  function backToAllFeatures() {
+    history.pushState(null, '', '/knowledge');
+    setActiveNbId(null); setActiveModId(null);
+    setScreen('all-features');
+    setAllFeatReturnActive(false);
+  }
 
   /* ── Feature linking from Projects ── */
   function openFeatureFromProject(moduleId, featureId, projId, client) {
@@ -395,7 +419,7 @@ function App() {
     if (!nb) return null;
     const newFeat = {
       id: 'f_' + Math.random().toString(36).slice(2, 6),
-      name: featureName, desc: '', models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: ''
+      name: featureName, parentId: null, desc: '', models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: ''
     };
     const updatedNb = {
       ...nb,
@@ -421,7 +445,7 @@ function App() {
     const name = await showPrompt("Tên tính năng mới:", "Tính năng mới");
     if (!name) return;
     const id   = "f_" + Math.random().toString(36).slice(2, 6);
-    const newF = { id, name, desc: "", models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: "" };
+    const newF = { id, name, parentId: null, desc: "", models: { cards: [] }, flows: [], detailBlocks: [], integrations: [], notes: "" };
     setActiveMod({ ...activeMod, features: [...activeMod.features, newF] });
     setSelection({ type: "feature", featId: id });
   }
@@ -466,6 +490,11 @@ function App() {
   /* ── Knowledge section content ── */
   function KnowledgeContent() {
     if (screen === "handbook" && activeMod) {
+      const returnCtx = projReturnCtx
+        ? { label: 'Dự án: ' + projReturnCtx.client, onClick: backToProject }
+        : allFeatReturnActive
+          ? { label: 'Tổng hợp tính năng', onClick: backToAllFeatures }
+          : null;
       return (
         <div className="app-shell">
           <Sidebar
@@ -489,7 +518,7 @@ function App() {
             onBackToModules={backToNotebook}
             notebook={activeNotebook}
             onBackToHome={backToHome}
-            returnContext={projReturnCtx ? { label: projReturnCtx.client, onClick: backToProject } : null}
+            returnContext={returnCtx}
           />
         </div>
       );
@@ -507,12 +536,25 @@ function App() {
         </div>
       );
     }
+    if (screen === "all-features") {
+      return (
+        <div className="app-shell app-shell-list">
+          <AllFeaturesScreen
+            data={data}
+            onOpenFeature={openFeatureFromAllFeatures}
+            onBack={backToHome}
+          />
+          <Savebar />
+        </div>
+      );
+    }
     return (
       <div className="app-shell app-shell-list">
         <HomeScreen
           data={data}
           setData={handleSetData}
           onOpen={openNotebook}
+          onOpenAllFeatures={openAllFeatures}
         />
         <Savebar />
       </div>

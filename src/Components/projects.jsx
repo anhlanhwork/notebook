@@ -184,13 +184,13 @@ export function ProjectsScreen({ projects = [], notebooks = [], onUpsert, onRemo
             <span>tiến độ TB <b>{avgPct}%</b></span>
           </div>
         </div>
-        <button className="clt-hero-btn" onClick={openAdd}>
-          <i className="ti ti-plus"/> Thêm dự án
-        </button>
       </div>
       </div>
 
-      {/* ── Filter row ── */}
+      {/* ── Body ── */}
+      <div className="clt-body">
+
+      {/* Filter row */}
       <div className="clt-filter-row2">
         <div className="clt-search-bar">
           <i className="ti ti-search"/>
@@ -219,9 +219,12 @@ export function ProjectsScreen({ projects = [], notebooks = [], onUpsert, onRemo
             <i className="ti ti-menu-2"/>
           </button>
         </div>
+        <button className="clt-hero-btn" onClick={openAdd}>
+          <i className="ti ti-plus"/> Thêm dự án
+        </button>
       </div>
 
-      {/* ── Grid ── */}
+      {/* Grid */}
       {view === 'grid' && (
         <div className="clt-proj-grid">
           {filtered.length === 0 && (
@@ -244,7 +247,7 @@ export function ProjectsScreen({ projects = [], notebooks = [], onUpsert, onRemo
         </div>
       )}
 
-      {/* ── List ── */}
+      {/* List */}
       {view === 'list' && (
         <div className="clt-list">
           <div className="clt-list-head">
@@ -311,10 +314,10 @@ export function ProjectsScreen({ projects = [], notebooks = [], onUpsert, onRemo
 
                 {/* Tiến độ */}
                 <div className="clt-lh2-prog clt-lrow-prog">
-                  <div className="clt-prog-track">
-                    <div className="clt-prog-bar" style={{ width: pct + '%', background: proj.color }}/>
-                  </div>
                   <span className="clt-prog-pct">{pct}%</span>
+                  <div className="clt-prog-track">
+                    <div className="clt-prog-bar" style={{ width: pct + '%', background: pct === 0 ? 'var(--text3)' : proj.color, opacity: pct === 0 ? 0.25 : 1 }}/>
+                  </div>
                 </div>
 
                 {/* Bắt đầu */}
@@ -351,6 +354,8 @@ export function ProjectsScreen({ projects = [], notebooks = [], onUpsert, onRemo
           })}
         </div>
       )}
+
+      </div>{/* /clt-body */}
 
       {modal && (
         <ProjectModal modal={modal} setField={setField} onSave={saveModal} onClose={() => setModal(null)}/>
